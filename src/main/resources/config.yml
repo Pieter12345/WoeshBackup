@@ -1,0 +1,28 @@
+#############################################################################################
+# WoeshBackup config file.
+#############################################################################################
+
+# The backupDirPath will be used to put all backups in. This path is relative to the server directory (not the plugins directory). Default: 'woeshBackups'.
+backupDirPath: 'woeshBackups'
+
+# The snapshotsDirPath will be used to put all restored backups in (/woeshbackup generatesnapshot). This path is relative to the server directory (not the plugins directory). Default: 'snapshots'.
+snapshotsDirPath: 'snapshots'
+
+# Autobackup settings.
+autoBackup:
+    
+    # Enable or disable auto backup. Default: true.
+    enabled: true
+    
+    # If enabled is true, a backup will be made every this amount of seconds. Default: 3600.
+    interval: 3600
+
+# The time to keep backups in seconds. Default: 1814400 (21 days).
+maxBackupAge: 1814400
+
+# If less than this amount of disk space is available, no backups will start. The value is in MBs.
+dontBackupIfLessThanThisSpaceIsAvailableInMB: 5000
+
+# Enable or disable debug feedback in console. Default: false.
+debugEnabled: false
+

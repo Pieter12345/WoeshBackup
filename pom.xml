@@ -1,0 +1,74 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>io.github.pieter12345</groupId>
+	<artifactId>WoeshBackup</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>WoeshBackup</name>
+	<description>An incremental backup plugin for CraftBukkit based MineCraft servers.</description>
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
+	<build>
+		<sourceDirectory>${basedir}/src/main/java</sourceDirectory>
+		<plugins>
+			
+			<!-- Compile plugin (required for compilation) -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>3.7.0</version>
+				<configuration>
+					<showDeprecation>true</showDeprecation>
+					<source>1.8</source>
+					<target>1.8</target>
+				</configuration>
+			</plugin>
+			
+			<!-- Jar creation plugin (creates a jar without dependencies) -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>3.1.0</version>
+				<configuration>
+					<archive>
+						<addMavenDescriptor>false</addMavenDescriptor>
+						<manifest>
+							<addDefaultImplementationEntries>true</addDefaultImplementationEntries>
+							<!-- <mainClass>io.github.pieter12345.SomeMainClass</mainClass> -->
+						</manifest>
+						<manifestEntries>
+							<Built-By>Anonymous</Built-By>
+						</manifestEntries>
+					</archive>
+				</configuration>
+			</plugin>
+			
+		</plugins>
+	</build>
+	<licenses>
+		<license>
+			<name>No License</name>
+		</license>
+	</licenses>
+	<dependencies>
+		
+		<!-- Bukkit API -->
+		<dependency>
+			<groupId>org.bukkit</groupId>
+			<artifactId>bukkit</artifactId>
+			<version>1.12-R0.1-SNAPSHOT</version>
+			<type>jar</type>
+			<scope>provided</scope>
+		</dependency>
+		
+	</dependencies>
+	<repositories>
+		
+		<!-- Bukkit API repo -->
+		<repository>
+			<id>spigot-repo</id>
+			<url>https://hub.spigotmc.org/nexus/content/repositories/snapshots/</url>
+		</repository>
+		
+	</repositories>
+</project>

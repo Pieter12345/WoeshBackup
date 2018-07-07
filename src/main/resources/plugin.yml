@@ -1,0 +1,11 @@
+name: WoeshBackup
+main: io.github.pieter12345.woeshbackup.WoeshBackupPlugin
+version: 0.0.1-SNAPSHOT
+author: Pieter12345/Woesh0007
+load: postworld
+commands:
+    woeshbackup:
+        description: Displays all WoeshBackup commands.
+        usage: Type "/woeshbackup" for help.
+        permission: woeshbackup.woeshbackup
+        permission-message: You do not have permission to use commands from this plugin (woeshbackup.woeshbackup).
