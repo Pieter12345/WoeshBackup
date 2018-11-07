@@ -95,11 +95,12 @@ public class ZipFile {
 	 * @param parentPath - A string denoting the path of the file within the zip file. This path does not need a root and does not need to exist.
 	 * Since it's a directory, it has to end with a "/". Example: "dir/dir2/" to put file at dir/dir2/file.
 	 * @throws FileNotFoundException If the file does not exist.
-	 * @throws NullPointerException If file is null or if the ZipFile was not open for writing.
+	 * @throws IllegalStateException If file is null or if the ZipFile was not open for writing.
 	 * @throws IOException If an I/O error has occurred.
-	 * @throws IllegalFormatException If the parentPath does not end with a "/".
+	 * @throws IllegalArgumentException If the parentPath does not end with a "/".
 	 */
-	public void add(File file, String parentPath) throws FileNotFoundException, IOException, NullPointerException {
+	public void add(File file, String parentPath)
+			throws FileNotFoundException, IOException, IllegalStateException, IllegalArgumentException {
 		
 		// Check if the file to add exists.
 		if(!file.exists()) {
@@ -111,8 +112,8 @@ public class ZipFile {
 		}
 		
 		// Check if this ZipFile was opened for writing.
-		if(this.zipOutStream == null) { // TODO - Keep NPE or change to something more suitable?
-			throw new NullPointerException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
+		if(this.zipOutStream == null) {
+			throw new IllegalStateException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
 		}
 		
 		// Put the file as next entry in the zip file.
@@ -176,19 +177,20 @@ public class ZipFile {
 	 * @param fileBytes - The file data in a byte array.
 	 * @param parentPath - A string denoting the path of the file within the zip file. This path does not need a root and does not need to exist.
 	 * Since it's a directory, it has to end with a "/". Example: "dir/dir2/" to put file at dir/dir2/file.
-	 * @throws NullPointerException If the ZipFile was not open for writing.
+	 * @throws IllegalStateException If the ZipFile was not open for writing.
 	 * @throws IOException If an I/O error occurs.
-	 * @throws IllegalFormatException If the parentPath does not end with a "/".
+	 * @throws IllegalArgumentException If the parentPath does not end with a "/".
 	 */
-	public void add(String fileName, byte[] fileBytes, String parentPath) throws IOException, NullPointerException {
+	public void add(String fileName, byte[] fileBytes, String parentPath)
+			throws IOException, IllegalStateException, IllegalArgumentException {
 		
 		if(!parentPath.endsWith("/")) {
 			throw new IllegalArgumentException("The parent path has to end with a \"/\". Received: " + parentPath);
 		}
 		
 		// Check if this ZipFile was opened for writing.
-		if(this.zipOutStream == null) { // TODO - Keep NPE or change to something more suitable?
-			throw new NullPointerException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
+		if(this.zipOutStream == null) {
+			throw new IllegalStateException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
 		}
 		
 		// Put the file as next entry in the zip file.
@@ -210,14 +212,14 @@ public class ZipFile {
 	 * @param filePath - The path of the file to add to the zip file. Names ending with a "/" are considered directories,
 	 * in which case the fileBytes will be ignored.
 	 * @param fileBytes - The file data in a byte array.
-	 * @throws NullPointerException - If the ZipFile was not open for writing.
+	 * @throws IllegalStateException - If the ZipFile was not open for writing.
 	 * @throws IOException - If an I/O error occurs.
 	 */
-	public void add(String filePath, byte[] fileBytes) throws IOException, NullPointerException {
+	public void add(String filePath, byte[] fileBytes) throws IOException, IllegalStateException {
 		
 		// Check if this ZipFile was opened for writing.
-		if(this.zipOutStream == null) { // TODO - Keep NPE or change to something more suitable?
-			throw new NullPointerException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
+		if(this.zipOutStream == null) {
+			throw new IllegalStateException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
 		}
 		
 		// Put the file as next entry in the zip file.
