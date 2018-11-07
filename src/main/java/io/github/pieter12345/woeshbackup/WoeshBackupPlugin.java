@@ -812,7 +812,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
 		
 		// Check for permission.
-		if(!sender.hasPermission("woeshbackup.woeshbackup")) {
+		if(!sender.hasPermission("woeshbackup.woeshbackup") || args.length == 0) { // 0 length should be impossible.
 			return new ArrayList<String>();
 		}
 		
@@ -830,25 +830,27 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		
 		// TAB-complete "/woeshbackup generatesnapshot <backupName> <beforeData>".
 		// beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss.
-		if(args.length == 2 && args[0].equalsIgnoreCase("generatesnapshot")) {
+		if(args[0].equalsIgnoreCase("generatesnapshot")) {
 			
 			// Check for permission.
 			if(!sender.hasPermission("woeshbackup.generatesnapshot")) {
 				return new ArrayList<String>(); // Return an empty list so no info about backups can be obtained.
 			}
 			
-			List<String> ret = new ArrayList<String>();
-			for(WoeshZipBackup backup : this.backups) {
-				if(backup.getToBackupDir().getName().toLowerCase().startsWith(args[1].toLowerCase())) {
-					ret.add(backup.getToBackupDir().getName());
+			if(args.length == 2) {
+				List<String> ret = new ArrayList<String>();
+				for(WoeshZipBackup backup : this.backups) {
+					if(backup.getToBackupDir().getName().toLowerCase().startsWith(args[1].toLowerCase())) {
+						ret.add(backup.getToBackupDir().getName());
+					}
 				}
+				return ret;
 			}
-			return ret;
-		}
-		if(args.length == 3 && args[0].equalsIgnoreCase("generatesnapshot") && args[2].trim().isEmpty()) {
-			List<String> ret = new ArrayList<String>();
-			ret.add(new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").format(new Date()));
-			return ret;
+			if(args.length == 3 && args[2].trim().isEmpty()) {
+				List<String> ret = new ArrayList<String>();
+				ret.add(new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").format(new Date()));
+				return ret;
+			}
 		}
 		
 		// Don't use the default TABcompleter, completing names is useless here.
@@ -869,12 +871,12 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		boolean success = true;
 		int count = 0;
 		Pattern snapshotPattern = Pattern.compile(
-				"^\\d\\d\\d\\d-\\d\\d-\\d\\d \\d\\d-\\d\\d-\\d\\d\\.zip$"); // Format: "yyyy-MM-dd HH-mm-ss.zip".
+				"^\\d{4}-\\d{2}-\\d{2} \\d{2}-\\d{2}-\\d{2}\\.zip$"); // Format: "yyyy-MM-dd HH-mm-ss.zip".
 		for(File snapDir : snapDirs) {
 			if(snapDir.isDirectory()) {
 				File[] snapDirFiles = snapDir.listFiles();
 				if(snapDirFiles == null) {
-					continue; // Directory is empty.
+					continue; // An I/O error occurred, skip the directory.
 				}
 				for(File file : snapDirFiles) {
 					if(file.isFile() && snapshotPattern.matcher(file.getName()).matches()) {
