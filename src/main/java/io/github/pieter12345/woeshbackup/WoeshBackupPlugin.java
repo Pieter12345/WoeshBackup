@@ -893,10 +893,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	 * setPersistentLastBackupDate method.
 	 * Sets the time a backup was last performed.
 	 * @param time - The time when the last backup started.
-	 * @throws IOException - When the time could not be set in the lastBackup.txt file as lastModified time.
+	 * @throws IOException - When the time could not be set in the ".lastBackup" file as lastModified time.
 	 */
 	private void setPersistentLastBackupDate(long time) throws IOException {
-		File timeFile = new File(this.backupDir.getAbsolutePath() + "/lastBackup.txt");
+		File timeFile = new File(this.backupDir.getAbsolutePath() + "/.lastBackup");
 		if(!timeFile.exists()) {
 			timeFile.createNewFile();
 		}
@@ -911,7 +911,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	 * or 0 when unknown.
 	 */
 	private long getPersistentLastBackupDate() {
-		File timeFile = new File(this.backupDir.getAbsolutePath() + "/lastBackup.txt");
+		File timeFile = new File(this.backupDir.getAbsolutePath() + "/.lastBackup");
 		return timeFile.lastModified();
 	}
 }
