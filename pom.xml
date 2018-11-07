@@ -4,12 +4,11 @@
 	<artifactId>WoeshBackup</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>WoeshBackup</name>
-	<description>An incremental backup plugin for CraftBukkit based MineCraft servers.</description>
+	<description>An incremental backup plugin for Bukkit based Minecraft servers.</description>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
 	<build>
-		<sourceDirectory>${basedir}/src/main/java</sourceDirectory>
 		<plugins>
 			
 			<!-- Compile plugin (required for compilation) -->
