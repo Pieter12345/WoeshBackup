@@ -88,52 +88,6 @@ public class WoeshZipBackup {
 		this.ignoreFile = null;
 	}
 	
-//	/**
-//	 * Constructor.
-//	 * Creates a new WoeshZipBackup object.
-//	 * @param backupBaseDirPath - The base directory to backup to.
-//	 * If this starts with a "~/", the path will be relative to the jars parent directory.
-//	 * @param toBackupDirPath - The directory to backup from.
-//	 * If this starts with a "~/", the path will be relative to the jars parent directory.
-//	 * @param ignoreFilePath - The optional path to a file containing paths to files and directories to ignore.
-//	 * If this starts with a "~/", the path will be relative to the jars parent directory.
-//	 * @deprecated Use constructor WoeshZipBackup(File backupBaseDir, File toBackupDir, File ignoreFile) instead.
-//	 */
-//	public WoeshZipBackup(String backupBaseDirPath, String toBackupDirPath, String ignoreFilePath) {
-//		if(backupBaseDirPath.startsWith("~/")) {
-//			this.backupBaseDir = new File(new File("").getAbsolutePath() + backupBaseDirPath.substring(1));
-//		} else {
-//			this.backupBaseDir = new File(backupBaseDirPath);
-//		}
-//		if(toBackupDirPath.startsWith("~/")) {
-//			this.toBackupDir = new File(new File("").getAbsolutePath() + toBackupDirPath.substring(1));
-//		} else {
-//			this.toBackupDir = new File(toBackupDirPath);
-//		}
-//		if(ignoreFilePath != null) {
-//			if(ignoreFilePath.startsWith("~/")) {
-//				this.ignoreFile = new File(new File("").getAbsolutePath() + ignoreFilePath.substring(1));
-//			} else {
-//				this.ignoreFile = new File(ignoreFilePath);
-//			}
-//		} else {
-//			this.ignoreFile = null;
-//		}
-//	}
-	
-//	/**
-//	 * Constructor.
-//	 * Creates a new WoeshZipBackup object.
-//	 * @param backupBaseDirPath - The base directory to backup to.
-//	 * If this starts with a "~/", the path will be relative to the jars parent directory.
-//	 * @param toBackupDirPath - The directory to backup from.
-//	 * If this starts with a "~/", the path will be relative to the jars parent directory.
-//	 * @deprecated Use constructor WoeshZipBackup(File backupBaseDir, File toBackupDir) instead.
-//	 */
-//	public WoeshZipBackup(String backupBaseDirPath, String toBackupDirPath) {
-//		this(backupBaseDirPath, toBackupDirPath, null);
-//	}
-	
 	/**
 	 * createInitialBackup method.
 	 * Creates an initial backup at the backup base directory /name/original/yyyy-MM-dd HH-mm-ss.zip
@@ -1280,9 +1234,6 @@ public class WoeshZipBackup {
 		
 		// Return an empty list when the ignoreFile did not exist or was not a file.
 		if(!this.ignoreFile.isFile()) {
-//			debug("Ignore file for backup \"" + this.toBackupDir.getName() + "\" did not exist: "
-//					+ this.ignoreFile.getAbsolutePath());
-//			return ignoreFilePaths;
 			return null;
 		}
 		
@@ -1300,12 +1251,8 @@ public class WoeshZipBackup {
 			}
 			reader.close();
 		} catch (FileNotFoundException e) { // Should never occur, handle it anyways.
-//			debug("Ignore file for backup \"" + this.toBackupDir.getName() + "\" did not exist: "
-//					+ this.ignoreFile.getAbsolutePath());
-//			return ignoreFilePaths;
 			return null;
 		} catch (IOException e) {
-//			debug("An IOException occured while reading from: " + this.ignoreFile.getAbsolutePath());
 			throw e;
 		}
 		return ignoreFilePaths;
