@@ -109,7 +109,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		if(autoBackup) {
 			long timeSinceLastBackupMillis = System.currentTimeMillis() - this.getPersistentLastBackupDate();
 			int timeUntilNextBackupSec = this.backupIntervalSeconds - (int) (timeSinceLastBackupMillis / 1000);
-			this.backupIntervalTask = this.startBackupIntervalTask(
+			this.startBackupIntervalTask(
 					(timeUntilNextBackupSec < 60 ? 60 : timeUntilNextBackupSec));
 		}
 		
@@ -140,13 +140,21 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	
 	/**
 	 * startBackupIntervalTask method.
-	 * Schedules a recurring task to run after the given initial delay.
+	 * Schedules the recurring backup task to run after the given initial delay.
+	 * Does nothing if the backup task is already running.
 	 * @param initialDelaySeconds - The amount of seconds before the task will run.
-	 * @return The scheduled task.
 	 */
-	private CancellableBukkitTask startBackupIntervalTask(int initialDelaySeconds) {
+	private void startBackupIntervalTask(int initialDelaySeconds) {
+		
+		// Return if the backup task is active already.
+		if(this.backupIntervalTask != null) {
+			return;
+		}
+		
+		// Start the backup task.
 		final CancellableBukkitTask[] task = new CancellableBukkitTask[1];
-		task[0] = new CancellableBukkitTask(Bukkit.getScheduler().runTaskTimer(this, new Runnable() {
+		task[0] = new CancellableBukkitTask(
+				Bukkit.getScheduler().runTaskTimer(this, new Runnable() {
 			@Override
 			public void run() {
 				if(!task[0].isCancelled()) {
@@ -156,7 +164,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		},
 		20 * initialDelaySeconds,
 		20 * this.backupIntervalSeconds));
-		return task[0];
+		this.backupIntervalTask = task[0];
 	}
 	
 	/**
@@ -418,6 +426,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			// Cancel and restart the current task if it exists.
 			if(this.backupIntervalTask != null) {
 				this.backupIntervalTask.cancel();
+				this.backupIntervalTask = null;
 				int timeUntilNextBackupSeconds;
 				if(this.isBackupInProgress()) {
 					timeUntilNextBackupSeconds = this.backupIntervalSeconds;
@@ -428,7 +437,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 						timeUntilNextBackupSeconds = 0;
 					}
 				}
-				this.backupIntervalTask = this.startBackupIntervalTask(timeUntilNextBackupSeconds);
+				this.startBackupIntervalTask(timeUntilNextBackupSeconds);
 			}
 		}
 		
@@ -503,7 +512,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			
 			// Re-enable the task if it existed.
 			if(taskExists) {
-				this.backupIntervalTask = this.startBackupIntervalTask(this.backupIntervalSeconds);
+				this.startBackupIntervalTask(this.backupIntervalSeconds);
 			}
 			
 			// Print feedback.
@@ -570,7 +579,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				int timeUntilNextBackupSeconds = this.backupIntervalSeconds - (int) (timeSinceLastBackupMillis / 1000);
 				sender.sendMessage(String.format(
 						"WoeshBackup will now backup every %d minutes.", (int) (this.backupIntervalSeconds / 60)));
-				this.backupIntervalTask = this.startBackupIntervalTask(
+				this.startBackupIntervalTask(
 						(timeUntilNextBackupSeconds < 0 ? 0 : timeUntilNextBackupSeconds));
 			}
 			break;
