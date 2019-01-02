@@ -1,10 +1,24 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.github.pieter12345</groupId>
 	<artifactId>WoeshBackup</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>WoeshBackup</name>
 	<description>An incremental backup plugin for Bukkit based Minecraft servers.</description>
+	<developers>
+		<developer>
+			<id>Pieter12345</id>
+			<name>P.J.S. Kools</name>
+			<url>http://pieter12345.github.io</url>
+			<roles>
+				<role>project manager</role>
+				<role>developer</role>
+				<role>tester</role>
+			</roles>
+			<timezone>GMT+1</timezone>
+		</developer>
+	</developers>
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 	</properties>
