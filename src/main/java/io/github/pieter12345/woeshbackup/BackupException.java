@@ -1,5 +1,10 @@
 package io.github.pieter12345.woeshbackup;
 
+/**
+ * An Exception that should be thrown as outcome of a failed operation on a backup.
+ * The message should contain the feedback for the user that has given the command to perform this failed operation.
+ * @author P.J.S. Kools
+ */
 @SuppressWarnings("serial")
 public class BackupException extends Exception  {
 	

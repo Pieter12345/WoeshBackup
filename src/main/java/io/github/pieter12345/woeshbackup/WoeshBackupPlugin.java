@@ -43,6 +43,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	
 	private static final String NO_PERMS_MSG = ChatColor.RED + "You do not have permission to use this command.";
 	
+	public WoeshBackupPlugin() {
+	}
+	
 	// onEnable will run when the plugin is enabled.
 	@Override
 	public void onEnable() {
@@ -245,7 +248,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 						}).get();
 					} catch (InterruptedException e) {
 						this.interrupt(); // Make sure the interrupt flag is set.
-					} catch(ExecutionException e) {
+					} catch (ExecutionException e) {
 						// Never happens.
 						e.printStackTrace();
 					}
@@ -306,11 +309,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 							WoeshBackupPlugin.this.getLogger().severe("Finished "
 									+ (hasOriginalBackup ? "update" : "original") + " backup with errors: "
 									+ backup.getToBackupDir().getName() + " (" + timeElapsedStr + ").\n"
-									+ (debugEnabled ?
-											"Here's the stacktrace:\n" + Utils.getStacktrace(ex)
-										:
-											"Exception type: " + ex.getClass().getSimpleName()
-											+ ", Exception message: " + ex.getMessage()
+									+ (debugEnabled ? "Here's the stacktrace:\n" + Utils.getStacktrace(ex)
+										: "Exception type: " + ex.getClass().getSimpleName()
+										+ ", Exception message: " + ex.getMessage()
 									));
 						}
 					}
@@ -632,9 +633,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			if(file.exists()) {
 				file.getUsableSpace();
 				sender.sendMessage("Listing disk info for: " + file.getAbsolutePath()
-						+ "\n  Free disk space: " + file.getFreeSpace()/1000000 + "MB"
-						+ "\n  Total disk space: " + file.getTotalSpace()/1000000 + "MB"
-						+ "\n  Free usable disk space: " + file.getUsableSpace()/1000000 + "MB");
+						+ "\n  Free disk space: " + (file.getFreeSpace() / 1000000) + "MB"
+						+ "\n  Total disk space: " + (file.getTotalSpace() / 1000000) + "MB"
+						+ "\n  Free usable disk space: " + (file.getUsableSpace() / 1000000) + "MB");
 			} else {
 				sender.sendMessage("Unable to get disk info. Root directory could not be resolved.");
 			}
@@ -772,8 +773,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			}
 			
 			int amount = this.removeGeneratedSnapshots();
-			sender.sendMessage(amount >= 0 ?
-					"Successfully removed " + amount + " snapshots."
+			sender.sendMessage(amount >= 0 ? "Successfully removed " + amount + " snapshots."
 					: "An error occured while removing one or multiple snapshots.");
 			break;
 		}

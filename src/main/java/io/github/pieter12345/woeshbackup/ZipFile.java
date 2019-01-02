@@ -17,6 +17,10 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
+/**
+ * This class implements methods for reading and writing of zip files.
+ * @author P.J.S. Kools
+ */
 public class ZipFile {
 	
 	// Variables & Constants.
@@ -92,7 +96,8 @@ public class ZipFile {
 	 * add method.
 	 * Adds the given file to the zip file. The open() method has to be called before files can be added.
 	 * @param file - The File to add to the zip file.
-	 * @param parentPath - A string denoting the path of the file within the zip file. This path does not need a root and does not need to exist.
+	 * @param parentPath - A string denoting the path of the file within the zip file.
+	 * This path does not need a root and does not need to exist.
 	 * Since it's a directory, it has to end with a "/". Example: "dir/dir2/" to put file at dir/dir2/file.
 	 * @throws FileNotFoundException If the file does not exist.
 	 * @throws IllegalStateException If file is null or if the ZipFile was not open for writing.
@@ -113,7 +118,8 @@ public class ZipFile {
 		
 		// Check if this ZipFile was opened for writing.
 		if(this.zipOutStream == null) {
-			throw new IllegalStateException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
+			throw new IllegalStateException(
+					"Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
 		}
 		
 		// Put the file as next entry in the zip file.
@@ -136,9 +142,10 @@ public class ZipFile {
 				debug("Failed to add file to zip file. Attempting to add it through a temp file: "
 						+ file.getAbsolutePath());
 				inStream.close();
-				tempFile = new File(this.zipFile.getParentFile().getAbsolutePath() + "/~woeshbackup temp - " + file.getName());
-				Files.copy(file.toPath(), tempFile.toPath(),
-						StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES, LinkOption.NOFOLLOW_LINKS);
+				tempFile = new File(this.zipFile.getParentFile().getAbsolutePath()
+						+ "/~woeshbackup temp - " + file.getName());
+				Files.copy(file.toPath(), tempFile.toPath(), StandardCopyOption.REPLACE_EXISTING,
+						StandardCopyOption.COPY_ATTRIBUTES, LinkOption.NOFOLLOW_LINKS);
 				inStream = new BufferedInputStream(new FileInputStream(tempFile), BUFFER_SIZE);
 				try {
 					count = inStream.read(buffer, 0, BUFFER_SIZE);
@@ -172,10 +179,11 @@ public class ZipFile {
 	/**
 	 * add method.
 	 * Adds the given file bytes to the zip file. The open() method has to be called before files can be added.
-	 * @param fileName - The name of the file to add to the zip file. Names ending with a "/" are considered directories,
-	 * in which case the fileBytes will be ignored.
+	 * @param fileName - The name of the file to add to the zip file. Names ending with a "/" are considered
+	 * directories, in which case the fileBytes will be ignored.
 	 * @param fileBytes - The file data in a byte array.
-	 * @param parentPath - A string denoting the path of the file within the zip file. This path does not need a root and does not need to exist.
+	 * @param parentPath - A string denoting the path of the file within the zip file.
+	 * This path does not need a root and does not need to exist.
 	 * Since it's a directory, it has to end with a "/". Example: "dir/dir2/" to put file at dir/dir2/file.
 	 * @throws IllegalStateException If the ZipFile was not open for writing.
 	 * @throws IOException If an I/O error occurs.
@@ -190,7 +198,8 @@ public class ZipFile {
 		
 		// Check if this ZipFile was opened for writing.
 		if(this.zipOutStream == null) {
-			throw new IllegalStateException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
+			throw new IllegalStateException(
+					"Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
 		}
 		
 		// Put the file as next entry in the zip file.
@@ -209,8 +218,8 @@ public class ZipFile {
 	/**
 	 * add method.
 	 * Adds the given file bytes to the zip file. The open() method has to be called before files can be added.
-	 * @param filePath - The path of the file to add to the zip file. Names ending with a "/" are considered directories,
-	 * in which case the fileBytes will be ignored.
+	 * @param filePath - The path of the file to add to the zip file. Names ending with a "/" are considered
+	 * directories, in which case the fileBytes will be ignored.
 	 * @param fileBytes - The file data in a byte array.
 	 * @throws IllegalStateException - If the ZipFile was not open for writing.
 	 * @throws IOException - If an I/O error occurs.
@@ -219,7 +228,8 @@ public class ZipFile {
 		
 		// Check if this ZipFile was opened for writing.
 		if(this.zipOutStream == null) {
-			throw new IllegalStateException("Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
+			throw new IllegalStateException(
+					"Unable to add file to ZipFile: ZipFile was not opened (or already closed).");
 		}
 		
 		// Put the file as next entry in the zip file.

@@ -3,6 +3,10 @@ package io.github.pieter12345.woeshbackup;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
+/**
+ * A cancellable implementation of {@link BukkitTask}.
+ * @author P.J.S. Kools
+ */
 public class CancellableBukkitTask implements BukkitTask {
 	
 	private final BukkitTask task;
