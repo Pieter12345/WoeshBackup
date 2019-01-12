@@ -3,6 +3,7 @@ main: io.github.pieter12345.woeshbackup.WoeshBackupPlugin
 version: ${version}
 author: Pieter12345/Woesh0007
 load: postworld
+api-version: 1.13
 commands:
     woeshbackup:
         description: Displays all WoeshBackup commands.
