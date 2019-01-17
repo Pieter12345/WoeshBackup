@@ -64,4 +64,15 @@ public abstract class Utils {
 		}
 		return new String(outStream.toByteArray(), StandardCharsets.UTF_8);
 	}
+	
+	/**
+	 * Throws an InterruptedException if the current thread is interrupted.
+	 * The interrupted status of the thread is unaffected by this method.
+	 * @throws InterruptedException If the current thread is interrupted.
+	 */
+	public static void checkInterrupt() throws InterruptedException {
+		if(Thread.currentThread().isInterrupted()) {
+			throw new InterruptedException();
+		}
+	}
 }

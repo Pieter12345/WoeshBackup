@@ -1,13 +1,18 @@
 package io.github.pieter12345.woeshbackup;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
@@ -33,7 +38,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	// Variables & Constants.
 	private File backupDir;
 	private File snapshotsDir;
-	private ArrayList<WoeshZipBackup> backups;
+	private Map<Backup, File> backups;
 	private Thread backupThread = null;
 	private CancellableBukkitTask backupIntervalTask;
 	private int backupIntervalSeconds; // [sec].
@@ -73,11 +78,11 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		debugEnabled = this.getConfig().getBoolean("debugEnabled", false);
 		
 		// Define the directory in which backups will be stored.
-		this.backupDir = new File(new File("").getAbsolutePath() + "/" + backupDirPath);
-		this.snapshotsDir = new File(new File("").getAbsolutePath() + "/" + snapshotsDirPath);
+		this.backupDir = new File(new File("").getAbsolutePath(), backupDirPath);
+		this.snapshotsDir = new File(new File("").getAbsolutePath(), snapshotsDirPath);
 		
 		// Initialize backups and backupThreads list.
-		this.backups = new ArrayList<WoeshZipBackup>();
+		this.backups = new HashMap<Backup, File>();
 		
 		// Create a WoeshBackup for all worlds. The delay is there to allow the worlds to load.
 		Bukkit.getScheduler().runTaskLater(this, new Runnable() {
@@ -89,13 +94,13 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				iterateLoop:
 				while(worldIterator.hasNext()) {
 					File toBackupWorldDir = worldIterator.next().getWorldFolder().getAbsoluteFile();
-					for(WoeshZipBackup backup : WoeshBackupPlugin.this.backups) {
+					for(Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
 						if(backup.getToBackupDir().equals(toBackupWorldDir)) {
 							continue iterateLoop;
 						}
 					}
-					WoeshBackupPlugin.this.backups.add(
-							new WoeshZipBackup(WoeshBackupPlugin.this.backupDir, toBackupWorldDir));
+					WoeshBackupPlugin.this.backups.put(new ZipFileBackup(toBackupWorldDir, new ZipFileBackupPartFactory(
+									new File(WoeshBackupPlugin.this.backupDir, toBackupWorldDir.getName()))), null);
 				}
 			}
 		},
@@ -103,9 +108,19 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		
 		// Create a WoeshBackup for the plugins directory.
 //		File serverBaseDir = Bukkit.getServer().getWorldContainer();
-		this.backups.add(new WoeshZipBackup(this.backupDir,
-				new File(new File("").getAbsolutePath() + "/plugins"),
-				new File(new File("").getAbsolutePath() + "/woeshBackupIgnore - plugins.txt")));
+		File ignoreFile = new File("woeshBackupIgnore - plugins.txt");
+		List<String> ignorePaths;
+		try {
+			ignorePaths = readIgnorePaths(ignoreFile);
+		} catch (IOException e) {
+			ignorePaths = new ArrayList<String>();
+			this.getLogger().severe(
+					"IOException while reading plugins ignore file. No files will be ignored during the next backup.");
+		}
+		File toBackupDir = new File("plugins");
+		this.backups.put(new ZipFileBackup(toBackupDir,
+				new ZipFileBackupPartFactory(new File(this.backupDir, toBackupDir.getName())), ignorePaths),
+				ignoreFile);
 		
 		// Schedule a task to generate initial backups if they do not exist or update existing
 		// backups every backupInterval minutes.
@@ -125,8 +140,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		}.start();
 		
 		// Print disk space feedback.
-		this.getLogger().info("Believed free disk space: "
-				+ (WoeshZipBackup.getFreeUsableDiskSpace(this.backupDir) / 1000000) + "MB.");
+		this.getLogger().info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");
 		
 	}
 	
@@ -177,8 +191,17 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	 */
 	private void performBackup() {
 		
+		// Create the backup directory if it does not exist.
+		if(!this.backupDir.isDirectory()) {
+			if(!this.backupDir.mkdir()) {
+				WoeshBackupPlugin.this.getLogger().severe("Failed to create the main backup directory at: "
+						+ this.backupDir.getAbsolutePath() + ". Skipping backup.");
+				return;
+			}
+		}
+		
 		// Check if there is at least 1GB of free disk space. Don't backup otherwise.
-		long availableDiskSpace = WoeshZipBackup.getFreeUsableDiskSpace(this.backupDir);
+		long availableDiskSpace = this.backupDir.getUsableSpace();
 		if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
 			WoeshBackupPlugin.this.getLogger().severe("Skipping backups since less than "
 					+ this.minDiskSpaceToAllowBackup + "MB of free disk space was found("
@@ -201,12 +224,13 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		iterateLoop:
 		while(worldIterator.hasNext()) {
 			File toBackupWorldDir = worldIterator.next().getWorldFolder().getAbsoluteFile();
-			for(WoeshZipBackup backup : this.backups) {
+			for(Backup backup : this.backups.keySet()) {
 				if(backup.getToBackupDir().equals(toBackupWorldDir)) {
 					continue iterateLoop;
 				}
 			}
-			this.backups.add(new WoeshZipBackup(this.backupDir, toBackupWorldDir));
+			this.backups.put(new ZipFileBackup(toBackupWorldDir,
+					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()))), null);
 		}
 		
 		// Update all backups on a seperate thread.
@@ -216,7 +240,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			@Override
 			public void run() {
 				final long fullBackupStartTime = System.currentTimeMillis();
-				for(final WoeshZipBackup backup : WoeshBackupPlugin.this.backups) {
+				for(final Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
 					
 					// Return if the thread has been interrupted (cancelled / server shutting down).
 					if(this.isInterrupted()) {
@@ -255,27 +279,21 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					final boolean wasAutoSaveEnabled = (boolean) retInfo[0];
 					final World world = (World) retInfo[1];
 					
-					final boolean hasOriginalBackup;
 					Exception ex = null;
 					try {
-						// Validate the backups (remove unfinished/interrupted backups).
-						backup.validateBackups();
 						
 						// Merge (and remove) old backups.
 						try {
-							backup.mergeUpdateBackups(mergeBeforeDate);
+							backup.merge(mergeBeforeDate);
 						} catch (BackupException e) {
-							backup.validateBackups(); // Revalidate since a partial new backup might have been created.
+							WoeshBackupPlugin.this.getLogger().severe("Merging backups failed for backup: "
+									+ backup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
+									+ Utils.getStacktrace(e));
 						}
 					
-						// Generate the initial or update backup.
-						hasOriginalBackup = backup.hasOriginalBackup();
+						// Perform the backup.
 						try {
-							if(hasOriginalBackup) {
-								backup.updateLatestBackup();
-							} else {
-								backup.createInitialBackup();
-							}
+							backup.backup();
 						} catch (InterruptedException e) {
 							throw e;
 						} catch (Exception e) {
@@ -302,12 +320,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 						float timeElapsed = (float) ((System.currentTimeMillis() - singleBackupStartTime) / 1000);
 						String timeElapsedStr = String.format("%.0f sec", timeElapsed);
 						if(ex == null) {
-							WoeshBackupPlugin.this.getLogger().info("Finished "
-									+ (hasOriginalBackup ? "update" : "original") + " backup: "
+							WoeshBackupPlugin.this.getLogger().info("Finished backup: "
 									+ backup.getToBackupDir().getName() + " (" + timeElapsedStr + ").");
 						} else {
-							WoeshBackupPlugin.this.getLogger().severe("Finished "
-									+ (hasOriginalBackup ? "update" : "original") + " backup with errors: "
+							WoeshBackupPlugin.this.getLogger().severe("Finished backup with errors: "
 									+ backup.getToBackupDir().getName() + " (" + timeElapsedStr + ").\n"
 									+ (debugEnabled ? "Here's the stacktrace:\n" + Utils.getStacktrace(ex)
 										: "Exception type: " + ex.getClass().getSimpleName()
@@ -412,12 +428,33 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		File snapshotsDir = new File(new File("").getAbsolutePath() + "/" + snapshotsDirPath).getAbsoluteFile();
 		if(!backupDir.equals(this.backupDir)) {
 			this.backupDir = backupDir;
-			for(WoeshZipBackup backup : this.backups) {
-				backup.setBackupBaseDir(this.backupDir);
+			for(Backup backup : this.backups.keySet()) {
+				ZipFileBackupPartFactory factory =
+						(ZipFileBackupPartFactory) ((ZipFileBackup) backup).getBackupPartFactory();
+				factory.setStorageDir(new File(this.backupDir, backup.getToBackupDir().getName()));
 			}
 		}
 		if(!snapshotsDir.equals(this.snapshotsDir)) {
 			this.snapshotsDir = snapshotsDir;
+		}
+		
+		// Reload the ignore paths for the plugins backup.
+		for(Entry<Backup, File> backupEntry : this.backups.entrySet()) {
+			if(backupEntry.getValue() != null) {
+				try {
+					backupEntry.getKey().setIgnorePaths(readIgnorePaths(backupEntry.getValue()));
+				} catch (IOException e) {
+					this.getLogger().severe("IOException while reading ignore file for backup: "
+							+ backupEntry.getKey().getToBackupDir().getName() + ". Ignore file is not reloaded.");
+				}
+			}
+		}
+		// TODO - This should be done from some Map<Backup, File> to make it more generic.
+		for(Backup backup : this.backups.keySet()) {
+			if(backup.getToBackupDir().getName().equals("plugins")) {
+				
+				break;
+			}
 		}
 		
 		// Restart the backup task if the interval has changed.
@@ -454,6 +491,35 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	 */
 	private boolean isBackupInProgress() {
 		return this.backupThread != null && this.backupThread.isAlive();
+	}
+	
+	/**
+	 * Reads the given ignore paths file and returns the ignore paths as a list.
+	 * @param ignoreFile - The ignore paths file.
+	 * @return A list of ignore paths or null if the ignore paths file did not exist.
+	 * Note that these paths have not been validated and may have any file separator.
+	 * @throws IOException If an I/O error has occurred.
+	 */
+	private static List<String> readIgnorePaths(File ignoreFile) throws IOException {
+		
+		// Return null if no ignore file exists.
+		if(ignoreFile == null || !ignoreFile.isFile()) {
+			return null;
+		}
+		
+		// Read the ignore paths.
+		List<String> ignorePaths = new ArrayList<String>();
+		BufferedReader reader = new BufferedReader(new FileReader(ignoreFile));
+		while(reader.ready()) {
+			String line = reader.readLine();
+			
+			// Add relative paths, assuming that they are abstract. Ignore "//" prefixes to allow comments.
+			if(!line.isEmpty() && !line.trim().startsWith("//")) {
+				ignorePaths.add(line.split("//", 1)[0].trim());
+			}
+		}
+		reader.close();
+		return ignorePaths;
 	}
 	
 	@Override
@@ -672,8 +738,8 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			}
 			
 			// Check if the given backup exists.
-			WoeshZipBackup backup = null;
-			for(WoeshZipBackup b : this.backups) {
+			Backup backup = null;
+			for(Backup b : this.backups.keySet()) {
 				if(b.getToBackupDir().getName().equalsIgnoreCase(backupName)) {
 					backup = b;
 					break;
@@ -685,9 +751,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			}
 			
 			// Check if there is at least 2GB of free disk space. Don't restore otherwise.
-			long availableDiskSpace = WoeshZipBackup.getFreeUsableDiskSpace(this.backupDir);
+			long availableDiskSpace =
+					(this.snapshotsDir.isDirectory() ? this.snapshotsDir : this.backupDir).getUsableSpace();
 			if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
-				sender.sendMessage("Can't generate snapshots since less than " + this.minDiskSpaceToAllowBackup
+				sender.sendMessage("Cannot generate snapshots because less than " + this.minDiskSpaceToAllowBackup
 						+ "MB of free disk space was found(" + (availableDiskSpace / 1000000) + "MB).");
 				break;
 			}
@@ -697,7 +764,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					+ backup.getToBackupDir().getName() + ", before date: " + beforeDateStr);
 			
 			// Create a snapshot for the given date (merge backups and place the result in the snapshots directory).
-			final WoeshZipBackup finalBackup = backup;
+			final Backup finalBackup = backup;
 			final long finalBeforeDate = beforeDate;
 			new Thread() {
 				@Override
@@ -709,9 +776,8 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					// Generate a snapshot from the backup.
 					BackupException ex = null;
 					try {
-						finalBackup.restoreFromBackup(finalBeforeDate, new File(
-								WoeshBackupPlugin.this.snapshotsDir.getAbsolutePath()
-								+ "/" + finalBackup.getToBackupDir().getName()), true);
+						finalBackup.restore(finalBeforeDate,
+								new File(WoeshBackupPlugin.this.snapshotsDir, finalBackup.getToBackupDir().getName()));
 					} catch (BackupException e) {
 						ex = e;
 					} catch (InterruptedException e) {
@@ -839,7 +905,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			
 			if(args.length == 2) {
 				List<String> ret = new ArrayList<String>();
-				for(WoeshZipBackup backup : this.backups) {
+				for(Backup backup : this.backups.keySet()) {
 					if(backup.getToBackupDir().getName().toLowerCase().startsWith(args[1].toLowerCase())) {
 						ret.add(backup.getToBackupDir().getName());
 					}

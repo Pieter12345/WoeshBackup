@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>io.github.pieter12345</groupId>
 	<artifactId>WoeshBackup</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.0-SNAPSHOT</version>
 	<name>WoeshBackup</name>
 	<description>An incremental backup plugin for Bukkit based Minecraft servers.</description>
 	<developers>
