@@ -23,6 +23,7 @@ import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.scheduler.BukkitTask;
 
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
@@ -40,7 +41,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	private File snapshotsDir;
 	private Map<Backup, File> backups;
 	private Thread backupThread = null;
-	private CancellableBukkitTask backupIntervalTask;
+	private BukkitTask backupIntervalTask;
 	private int backupIntervalSeconds; // [sec].
 	private long timeToKeepBackups; // [ms].
 	private int minDiskSpaceToAllowBackup; // [MB].
@@ -169,18 +170,14 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		}
 		
 		// Start the backup task.
-		final CancellableBukkitTask[] task = new CancellableBukkitTask[1];
-		task[0] = new CancellableBukkitTask(
-				Bukkit.getScheduler().runTaskTimer(this, new Runnable() {
-			@Override
-			public void run() {
-				if(!task[0].isCancelled()) {
-					WoeshBackupPlugin.this.performBackup();
-				}
+		final BukkitTask[] task = new BukkitTask[1];
+		task[0] = Bukkit.getScheduler().runTaskTimer(this, () -> {
+			if(!task[0].isCancelled()) {
+				WoeshBackupPlugin.this.performBackup();
 			}
 		},
 		20 * initialDelaySeconds,
-		20 * this.backupIntervalSeconds));
+		20 * this.backupIntervalSeconds);
 		this.backupIntervalTask = task[0];
 	}
 	
