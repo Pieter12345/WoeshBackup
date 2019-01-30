@@ -71,7 +71,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		}
 		this.timeToKeepBackups = 1000 * this.getConfig().getInt("maxBackupAge", 1814400);
 		if(this.timeToKeepBackups <= 1000 * 3600) {
-			this.getLogger().warning("Invalid config entry found: autobackup.interval has to be >= 3600 [sec]. Found: "
+			this.getLogger().warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
 					+ (this.timeToKeepBackups / 1000) + ". Using default value: 1814400 [sec] (21 days).");
 			this.timeToKeepBackups = 1000 * 1814400;
 		}
@@ -86,23 +86,20 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		this.backups = new HashMap<Backup, File>();
 		
 		// Create a WoeshBackup for all worlds. The delay is there to allow the worlds to load.
-		Bukkit.getScheduler().runTaskLater(this, new Runnable() {
-			@Override
-			public void run() {
-				
-				// Add a WoeshBackup for all worlds that are loaded but do not have one yet.
-				Iterator<World> worldIterator = Bukkit.getWorlds().iterator();
-				iterateLoop:
-				while(worldIterator.hasNext()) {
-					File toBackupWorldDir = worldIterator.next().getWorldFolder().getAbsoluteFile();
-					for(Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
-						if(backup.getToBackupDir().equals(toBackupWorldDir)) {
-							continue iterateLoop;
-						}
+		Bukkit.getScheduler().runTaskLater(this, () -> {
+			
+			// Add a WoeshBackup for all worlds that are loaded but do not have one yet.
+			Iterator<World> worldIterator = Bukkit.getWorlds().iterator();
+			iterateLoop:
+			while(worldIterator.hasNext()) {
+				File toBackupWorldDir = worldIterator.next().getWorldFolder().getAbsoluteFile();
+				for(Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
+					if(backup.getToBackupDir().equals(toBackupWorldDir)) {
+						continue iterateLoop;
 					}
-					WoeshBackupPlugin.this.backups.put(new ZipFileBackup(toBackupWorldDir, new ZipFileBackupPartFactory(
-									new File(WoeshBackupPlugin.this.backupDir, toBackupWorldDir.getName()))), null);
 				}
+				WoeshBackupPlugin.this.backups.put(new ZipFileBackup(toBackupWorldDir, new ZipFileBackupPartFactory(
+								new File(WoeshBackupPlugin.this.backupDir, toBackupWorldDir.getName()))), null);
 			}
 		},
 		20 * 10); // 10 seconds delay (20 tps).
@@ -128,17 +125,11 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		if(autoBackup) {
 			long timeSinceLastBackupMillis = System.currentTimeMillis() - this.getPersistentLastBackupDate();
 			int timeUntilNextBackupSec = this.backupIntervalSeconds - (int) (timeSinceLastBackupMillis / 1000);
-			this.startBackupIntervalTask(
-					(timeUntilNextBackupSec < 60 ? 60 : timeUntilNextBackupSec));
+			this.startBackupIntervalTask((timeUntilNextBackupSec < 60 ? 60 : timeUntilNextBackupSec));
 		}
 		
 		// Remove existing generated snapshots.
-		new Thread() {
-			@Override
-			public void run() {
-				WoeshBackupPlugin.this.removeGeneratedSnapshots();
-			}
-		}.start();
+		new Thread(() -> WoeshBackupPlugin.this.removeGeneratedSnapshots()).start();
 		
 		// Print disk space feedback.
 		this.getLogger().info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");
@@ -207,9 +198,8 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		}
 		
 		// Return if backups are still/already in progress.
-		if(this.backupThread != null && this.backupThread.isAlive()) {
-			WoeshBackupPlugin.this.getLogger().warning(
-					"Skipping backup because a backup is already/still in progress.");
+		if(this.isBackupInProgress()) {
+			WoeshBackupPlugin.this.getLogger().warning("Skipping backup because a backup is already in progress.");
 			return;
 		}
 		
@@ -356,32 +346,6 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		this.backupThread.start();
 	}
 	
-// Replaced with this.getLogger().info/warning/severe(...).
-//	/**
-//	 * sendConsoleMessage method.
-//	 * Sends the given message to console on the main thread. This method is thread-safe.
-//	 * @param message - The message to send to console.
-//	 */
-//	private void sendConsoleMessage(final String message) {
-//		if(Thread.currentThread().getName().equals("Server thread")) {
-//			Bukkit.getConsoleSender().sendMessage(message);
-//		} else if(this.isEnabled()) { // Don't start a new thread if the plugin has been disabled.
-//			try {
-//				Bukkit.getScheduler().callSyncMethod(this, new Callable<Object>() {
-//					@Override
-//					public Object call() throws Exception {
-//						Bukkit.getConsoleSender().sendMessage(message);
-//						return null;
-//					}
-//				}).get();
-//			} catch (InterruptedException e) {
-//				Thread.currentThread().interrupt();
-//			} catch (ExecutionException e) {
-//				e.printStackTrace(); // Never happens.
-//			}
-//		}
-//	}
-	
 	/**
 	 * loadConfig method.
 	 * (Re)loads the "config.yml" file and applies made changes.
@@ -446,13 +410,6 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				}
 			}
 		}
-		// TODO - This should be done from some Map<Backup, File> to make it more generic.
-		for(Backup backup : this.backups.keySet()) {
-			if(backup.getToBackupDir().getName().equals("plugins")) {
-				
-				break;
-			}
-		}
 		
 		// Restart the backup task if the interval has changed.
 		if(backupIntervalSeconds != this.backupIntervalSeconds) {
@@ -507,12 +464,12 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		// Read the ignore paths.
 		List<String> ignorePaths = new ArrayList<String>();
 		BufferedReader reader = new BufferedReader(new FileReader(ignoreFile));
-		while(reader.ready()) {
-			String line = reader.readLine();
-			
-			// Add relative paths, assuming that they are abstract. Ignore "//" prefixes to allow comments.
-			if(!line.isEmpty() && !line.trim().startsWith("//")) {
-				ignorePaths.add(line.split("//", 1)[0].trim());
+		String line;
+		while((line = reader.readLine()) != null) {
+			// Add relative paths, assuming that they are abstract. Ignore "//" comments.
+			line = line.split("//", 1)[0].trim();
+			if(!line.isEmpty()) {
+				ignorePaths.add(line);
 			}
 		}
 		reader.close();
@@ -560,7 +517,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			
 			// Return if a backup is running already.
 			if(this.isBackupInProgress()) {
-				sender.sendMessage("You can not start a new backup while a backup is running.");
+				sender.sendMessage("You cannot start a new backup while a backup is running.");
 				break;
 			}
 			
@@ -600,24 +557,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			}
 			
 			// Give feedback about if a backup is in progress.
-			if(this.isBackupInProgress()) {
-				sender.sendMessage("There is a backup in progress.");
-			} else {
-				sender.sendMessage("There is no backup in progress.");
-			}
-			
-//			// List the amount of backup threads running and their corresponding backup names.
-//			int amountOfBackupsRunning = this.backupThreads.size();
-//			if(amountOfBackupsRunning == 0) {
-//				sender.sendMessage("There are currently no backups running.");
-//			} else {
-//				String backupString = "";
-//				for(WoeshBackup backup : this.backupThreads.keySet()) {
-//					backupString += "\n  - " + backup.getToBackupDir().getName();
-//				}
-//				sender.sendMessage(
-//						"There are currently " + this.backupThreads.size() + " backups running:" + backupString);
-//			}
+			sender.sendMessage(this.isBackupInProgress()
+					? "There is a backup in progress."
+					: "There is no backup in progress.");
 			break;
 		}
 		case "on": {
@@ -763,67 +705,57 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			// Create a snapshot for the given date (merge backups and place the result in the snapshots directory).
 			final Backup finalBackup = backup;
 			final long finalBeforeDate = beforeDate;
-			new Thread() {
-				@Override
-				public void run() {
-					
-//					// Remove previously generated snapshots.
-//					WoeshBackupPlugin.this.removeGeneratedSnapshots();
-					
-					// Generate a snapshot from the backup.
-					BackupException ex = null;
-					try {
-						finalBackup.restore(finalBeforeDate,
-								new File(WoeshBackupPlugin.this.snapshotsDir, finalBackup.getToBackupDir().getName()));
-					} catch (BackupException e) {
-						ex = e;
-					} catch (InterruptedException e) {
-						sender.sendMessage("Backup restore was interrupted during execution: "
-								+ finalBackup.getToBackupDir().getName());
-						return;
-					}
-					
-					// Give feedback to the player.
-					final BackupException finalEx = ex;
-					if(WoeshBackupPlugin.this.isEnabled()) {
-						Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, new Runnable() {
-							@Override
-							public void run() {
-								
-								if(debugEnabled) {
-									WoeshBackupPlugin.this.getLogger().severe("An Exception occurred "
-											+ "while generating a snapshot for backup: "
-											+ finalBackup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
-											+ Utils.getStacktrace(finalEx));
-								}
-								
-								if(finalEx == null) {
-									sender.sendMessage("Succesfully generated snapshot for backup: "
-											+ finalBackup.getToBackupDir().getName());
-								} else {
-									if(finalEx.getCause() == null) {
-										sender.sendMessage("Failed to generate snapshot: "
-												+ finalBackup.getToBackupDir().getName()
-												+ ". Info: " + finalEx.getMessage());
-									} else {
-										String message = "Failed to generate snapshot: "
-												+ finalBackup.getToBackupDir().getName()
-												+ ". Info: " + finalEx.getMessage();
-										Throwable cause = finalEx.getCause();
-										while(cause != null) {
-											message += "\nCaused by: " + finalEx.getCause().getClass().getSimpleName()
-													+ "\n\tMessage: " + finalEx.getCause().getMessage();
-											cause = cause.getCause();
-										}
-										sender.sendMessage(message);
-									}
-								}
-							}
-						});
-					}
+			new Thread(() -> {
+//				// Remove previously generated snapshots.
+//				WoeshBackupPlugin.this.removeGeneratedSnapshots();
+				
+				// Generate a snapshot from the backup.
+				BackupException ex = null;
+				try {
+					finalBackup.restore(finalBeforeDate,
+							new File(WoeshBackupPlugin.this.snapshotsDir, finalBackup.getToBackupDir().getName()));
+				} catch (BackupException e) {
+					ex = e;
+				} catch (InterruptedException e) {
+					sender.sendMessage("Backup restore was interrupted during execution: "
+							+ finalBackup.getToBackupDir().getName());
+					return;
 				}
-			}.start();
-			
+				
+				// Give feedback to the player.
+				final BackupException finalEx = ex;
+				if(WoeshBackupPlugin.this.isEnabled()) {
+					Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> {
+						if(debugEnabled) {
+							WoeshBackupPlugin.this.getLogger().severe("An Exception occurred "
+									+ "while generating a snapshot for backup: "
+									+ finalBackup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
+									+ Utils.getStacktrace(finalEx));
+						}
+						if(finalEx == null) {
+							sender.sendMessage("Succesfully generated snapshot for backup: "
+									+ finalBackup.getToBackupDir().getName());
+						} else {
+							if(finalEx.getCause() == null) {
+								sender.sendMessage("Failed to generate snapshot: "
+										+ finalBackup.getToBackupDir().getName()
+										+ ". Info: " + finalEx.getMessage());
+							} else {
+								String message = "Failed to generate snapshot: "
+										+ finalBackup.getToBackupDir().getName()
+										+ ". Info: " + finalEx.getMessage();
+								Throwable cause = finalEx.getCause();
+								while(cause != null) {
+									message += "\nCaused by: " + finalEx.getCause().getClass().getSimpleName()
+											+ "\n\tMessage: " + finalEx.getCause().getMessage();
+									cause = cause.getCause();
+								}
+								sender.sendMessage(message);
+							}
+						}
+					});
+				}
+			}).start();
 			break;
 		}
 		case "removesnapshots": {
@@ -961,7 +893,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	 * @throws IOException - When the time could not be set in the ".lastBackup" file as lastModified time.
 	 */
 	private void setPersistentLastBackupDate(long time) throws IOException {
-		File timeFile = new File(this.backupDir.getAbsolutePath() + "/.lastBackup");
+		File timeFile = new File(this.backupDir, ".lastBackup");
 		if(!timeFile.exists()) {
 			timeFile.createNewFile();
 		}
@@ -976,7 +908,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	 * or 0 when unknown.
 	 */
 	private long getPersistentLastBackupDate() {
-		File timeFile = new File(this.backupDir.getAbsolutePath() + "/.lastBackup");
+		File timeFile = new File(this.backupDir, ".lastBackup");
 		return timeFile.lastModified();
 	}
 }
