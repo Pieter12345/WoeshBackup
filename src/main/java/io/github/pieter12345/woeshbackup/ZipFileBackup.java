@@ -198,7 +198,8 @@ public class ZipFileBackup implements Backup {
 	}
 	
 	@Override
-	public void restore(long beforeDate, File restoreToDir) throws BackupException, InterruptedException {
+	public void restore(long beforeDate, BackupRestoreWriterFactory restoreWriterFactory)
+			throws BackupException, InterruptedException {
 		
 		// Disallow a beforeDate in the future.
 		if(beforeDate > System.currentTimeMillis()) {
@@ -212,21 +213,17 @@ public class ZipFileBackup implements Backup {
 			throw new BackupException("No backup found before the given date: " + dateStr);
 		}
 		
-		// Create the zip file to output to.
-		if(!restoreToDir.exists()) {
-			restoreToDir.mkdir();
-		}
-		long backupTime = sortedBackups.get(sortedBackups.size() - 1).getCreationTime();
-		String restoreDate = BACKUP_DATE_FORMAT.format(new Date(backupTime));
-		ZipFileWriter zipFileWriter = new ZipFileWriter(new File(restoreToDir, restoreDate + ".zip"));
+		// Create the writer to output to.
+		long restoreFileDate = sortedBackups.get(sortedBackups.size() - 1).getCreationTime();
+		BackupRestoreWriter restoreWriter = restoreWriterFactory.create(restoreFileDate);
 		try {
 			try {
-				zipFileWriter.open();
+				restoreWriter.open();
 			} catch (IOException e) {
-				throw new BackupException("Failed to create restore zip file.", e);
+				throw new BackupException("Failed to open backup restore writer.", e);
 			}
 			
-			// Fill the zip file with content from the backup parts.
+			// Fill the backup restore writer with content from the backup parts.
 			Set<String> handledFiles = new HashSet<String>();
 			for(int i = sortedBackups.size() - 1; i >= 0; i--) {
 				BackupPart backup = sortedBackups.get(i);
@@ -244,30 +241,32 @@ public class ZipFileBackup implements Backup {
 				if(!changes.isEmpty()) {
 					try {
 						backup.readAll((fileEntry) -> {
-							if(changes.get(fileEntry.getRelativePath()) == ChangeType.ADDITION) {
-								zipFileWriter.add(fileEntry.getRelativePath(), fileEntry.getFileStream());
+							if(changes.containsKey(fileEntry.getRelativePath())) {
+								restoreWriter.add(fileEntry.getRelativePath(), fileEntry.getFileStream());
 							}
 						});
 					} catch (IOException e) {
 						throw new BackupException("Failed to read backup part to restore from.", e);
 					} catch (InvocationTargetException e) {
-						throw new BackupException("Failed to write to restore zip file.", e.getTargetException());
+						throw new BackupException("Failed to write to backup restore writer.", e.getTargetException());
 					}
 				}
 			}
 			
-			// Close the zip file.
+			// Close the backup restore writer.
 			try {
-				zipFileWriter.close();
+				restoreWriter.close();
 			} catch (IOException e) {
-				throw new BackupException("Failed to close restore zip file.", e);
+				throw new BackupException("Failed to close backup restore writer.", e);
 			}
 		} catch (Throwable t) {
 			
-			// Attempt to remove the created restore zip file.
-			if(!zipFileWriter.getFile().delete()) {
-				this.logger.severe(
-						"Failed to remove failed restore file at: " + zipFileWriter.getFile().getAbsolutePath());
+			// Attempt to remove the (partially) created restore data.
+			try {
+				restoreWriter.delete();
+			} catch (IOException e) {
+				this.logger.severe("Failed to remove failed restore file. "
+						+ e.getClass().getSimpleName() + ": " + e.getMessage());
 			}
 			
 			// Rethrow the exception.

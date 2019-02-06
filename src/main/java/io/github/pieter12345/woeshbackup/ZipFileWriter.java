@@ -59,7 +59,7 @@ public class ZipFileWriter {
 	 * Paths to directories should end with a file separator and paths to normal files should not.
 	 * Examples: "path/to/file.txt" or "path/to/dir/".
 	 * @throws IOException If an I/O error has occurred.
-	 * @throws IllegalStateException If the ZipFile was not open for writing.
+	 * @throws IllegalStateException If the {@link ZipFileWriter} was not open for writing.
 	 */
 	public void add(String relPath) throws IOException, IllegalStateException {
 		this.add(relPath, (InputStream) null);
@@ -76,7 +76,7 @@ public class ZipFileWriter {
 	 * @throws FileNotFoundException If the relPath represents a directory and the file does not exist,
 	 * is a directory rather than a regular file or for some other reason cannot be opened for reading.
 	 * @throws IOException If an I/O error has occurred.
-	 * @throws IllegalStateException If the ZipFile was not open for writing.
+	 * @throws IllegalStateException If the {@link ZipFileWriter} was not open for writing.
 	 */
 	public void add(String relPath, File file) throws FileNotFoundException, IOException, IllegalStateException {
 		if(file == null) {
@@ -95,14 +95,14 @@ public class ZipFileWriter {
 	 * @param fileBytes - The bytes to add. If the relative path ends with a file separator, this argument is ignored.
 	 * If this argument is null and used, an empty file entry will be added.
 	 * @throws IOException If an I/O error has occurred.
-	 * @throws IllegalStateException If the ZipFile was not open for writing.
+	 * @throws IllegalStateException If the {@link ZipFileWriter} was not open for writing.
 	 */
 	public void add(String relPath, byte[] fileBytes) throws IOException, IllegalStateException {
 		Objects.requireNonNull(relPath);
 		
-		// Check if this ZipFile is open for writing.
+		// Check if this ZipFileWriter is open for writing.
 		if(this.zipOutStream == null) {
-			throw new IllegalStateException("ZipFile was not opened or already closed.");
+			throw new IllegalStateException("Zip file was not opened or already closed.");
 		}
 		
 		// Put the file or directory as next entry in the zip file.
@@ -127,14 +127,14 @@ public class ZipFileWriter {
 	 * If the relative path ends with a file separator, this argument is ignored.
 	 * If this argument is null and used, an empty file entry will be added.
 	 * @throws IOException If an I/O error has occurred.
-	 * @throws IllegalStateException If the ZipFile was not open for writing.
+	 * @throws IllegalStateException If the {@link ZipFileWriter} was not open for writing.
 	 */
 	public void add(String relPath, InputStream inStream) throws IOException, IllegalStateException {
 		Objects.requireNonNull(relPath);
 		
-		// Check if this ZipFile is open for writing.
+		// Check if this ZipFileWriter is open for writing.
 		if(this.zipOutStream == null) {
-			throw new IllegalStateException("ZipFile was not opened or already closed.");
+			throw new IllegalStateException("Zip file was not opened or already closed.");
 		}
 		
 		// Handle null files and directories.

@@ -715,8 +715,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				// Generate a snapshot from the backup.
 				BackupException ex = null;
 				try {
-					finalBackup.restore(finalBeforeDate,
-							new File(WoeshBackupPlugin.this.snapshotsDir, finalBackup.getToBackupDir().getName()));
+					File restoreToDir =
+							new File(WoeshBackupPlugin.this.snapshotsDir, finalBackup.getToBackupDir().getName());
+					finalBackup.restore(finalBeforeDate, (restoreFileDate) ->
+							new BackupRestoreZipFileWriter(restoreToDir, restoreFileDate));
 				} catch (BackupException e) {
 					ex = e;
 				} catch (InterruptedException e) {

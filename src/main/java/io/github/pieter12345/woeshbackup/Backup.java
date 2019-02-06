@@ -34,11 +34,12 @@ public interface Backup {
 	 * rounding down to the closest older backup.
 	 * @param beforeDate - The timestamp threshold for restoring.
 	 * The restored backup will always be older or equal to this date.
-	 * @param restoreToDir - The directory to put the restored backup in.
+	 * @param restoreWriterFactory - The factory used to get the writer used to write the restore data.
 	 * @throws BackupException When the backup was not restored successfully.
 	 * @throws InterruptedException When the current Thread is interrupted.
 	 */
-	public void restore(long beforeDate, File restoreToDir) throws BackupException, InterruptedException;
+	public void restore(long beforeDate, BackupRestoreWriterFactory restoreWriterFactory)
+			throws BackupException, InterruptedException;
 	
 	/**
 	 * Gets the directory that is being backupped by this {@link Backup}.
