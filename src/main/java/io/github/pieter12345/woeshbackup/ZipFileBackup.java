@@ -16,9 +16,11 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+import java.util.logging.Logger;
 
 import io.github.pieter12345.woeshbackup.BackupPart.ChangeType;
 import io.github.pieter12345.woeshbackup.exceptions.CorruptedBackupException;
+import io.github.pieter12345.woeshbackup.utils.Utils;
 
 // TODO - Change class description and probably the name as well. This class can be fully abstracted from the backend.
 /**
@@ -29,6 +31,7 @@ public class ZipFileBackup implements Backup {
 	
 	private final File toBackupDir;
 	private final BackupPartFactory backupPartFactory;
+	private final Logger logger;
 	private Set<String> ignorePaths;
 	
 	private static final DateFormat BACKUP_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss");
@@ -37,9 +40,10 @@ public class ZipFileBackup implements Backup {
 	 * Creates a new {@link ZipFileBackup} that stores backups of toBackupDir in storageDir.
 	 * @param toBackupDir - The directory that will be backed up.
 	 * @param backupPartFactory - The factory used to create and read backup parts.
+	 * @param logger - The logger to use for info/warning/error logging.
 	 */
-	public ZipFileBackup(File toBackupDir, BackupPartFactory backupPartFactory) {
-		this(toBackupDir, backupPartFactory, null);
+	public ZipFileBackup(File toBackupDir, BackupPartFactory backupPartFactory, Logger logger) {
+		this(toBackupDir, backupPartFactory, logger, null);
 	}
 	
 	/**
@@ -47,15 +51,18 @@ public class ZipFileBackup implements Backup {
 	 * directories specified in ignorePaths.
 	 * @param toBackupDir - The directory that will be backed up.
 	 * @param backupPartFactory - The factory used to create and read backup parts.
+	 * @param logger - The logger to use for info/warning/error logging.
 	 * @param ignorePaths - The relative paths to the files and directories to ignore. These paths are relative
 	 * to the toBackupDir directory and will be used as "toBackupDir + separator + path".
 	 * Ignore paths specifying a directory should end with a file separator ('/' or '\').
 	 */
-	public ZipFileBackup(File toBackupDir, BackupPartFactory backupPartFactory, Collection<String> ignorePaths) {
+	public ZipFileBackup(File toBackupDir,
+			BackupPartFactory backupPartFactory, Logger logger, Collection<String> ignorePaths) {
 		Objects.requireNonNull(toBackupDir);
 		Objects.requireNonNull(backupPartFactory);
 		this.toBackupDir = toBackupDir;
 		this.backupPartFactory = backupPartFactory;
+		this.logger = logger;
 		this.setIgnorePaths(ignorePaths);
 	}
 	
@@ -128,8 +135,8 @@ public class ZipFileBackup implements Backup {
 			try {
 				backup.delete();
 			} catch (IOException e1) {
-				// TODO - Log as warning on console.
-				e1.printStackTrace();
+				this.logger.severe(
+						"Failed to remove a failed backup. Here's the stacktrace:\n" + Utils.getStacktrace(e1));
 				throw new BackupException("Failed to close the new backup. It could also not be removed.", e);
 			}
 			throw new BackupException("Failed to close the new backup.", e);
@@ -172,8 +179,8 @@ public class ZipFileBackup implements Backup {
 			try {
 				newBackup.delete();
 			} catch (IOException e1) {
-				// TODO - Log as warning on console.
-				e1.printStackTrace();
+				this.logger.severe(
+						"Failed to remove a failed merge backup. Here's the stacktrace:\n" + Utils.getStacktrace(e1));
 				throw new BackupException("Failed to close the merged backup. It could also not be removed.", e);
 			}
 			throw new BackupException("Failed to close the merged backup.", e);
@@ -184,8 +191,8 @@ public class ZipFileBackup implements Backup {
 			try {
 				backup.delete();
 			} catch (IOException e) {
-				// TODO - Log as warning on console.
-				e.printStackTrace();
+				this.logger.severe(
+						"Failed to remove a merged backup. Here's the stacktrace:\n" + Utils.getStacktrace(e));
 			}
 		}
 	}
@@ -259,7 +266,8 @@ public class ZipFileBackup implements Backup {
 			
 			// Attempt to remove the created restore zip file.
 			if(!zipFileWriter.getFile().delete()) {
-				// TODO - Log as warning on console.
+				this.logger.severe(
+						"Failed to remove failed restore file at: " + zipFileWriter.getFile().getAbsolutePath());
 			}
 			
 			// Rethrow the exception.
@@ -336,11 +344,13 @@ public class ZipFileBackup implements Backup {
 			} catch (IOException e) {
 				throw new BackupException("Failed to read changes from backup: " + backupPart.getName() + ".", e);
 			} catch (CorruptedBackupException e) {
+				this.logger.warning("Found corrupted backup: " + backupPart.getName());
 				try {
-					// TODO - Log this to console. - warning("Found corrupted backup: " + backupPart.getName());
 					e.getBackup().delete();
 					it.remove();
 				} catch (IOException e1) {
+					this.logger.severe("Failed to remove corrupted backup: " + backupPart.getName()
+							+ ". Here's the stacktrace:\n" + Utils.getStacktrace(e1));
 					throw new BackupException("Failed to remove corrupted backup: " + backupPart.getName(), e1);
 				}
 			}

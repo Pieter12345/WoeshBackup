@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -81,7 +82,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, null);
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory);
+		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -116,7 +117,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory);
+		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -148,7 +149,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory);
+		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -180,7 +181,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory);
+		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -214,7 +215,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory);
+		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -256,7 +257,7 @@ class ZipFileBackupTest {
 				Arrays.asList(backupPart1, backupPart2, backupPart3, backupPart4, backupPart5));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory);
+		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the merge between backups {1, 2, 3} and {4, 5}.
 		backup.merge(35000);

@@ -98,8 +98,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 						continue iterateLoop;
 					}
 				}
-				WoeshBackupPlugin.this.backups.put(new ZipFileBackup(toBackupWorldDir, new ZipFileBackupPartFactory(
-								new File(WoeshBackupPlugin.this.backupDir, toBackupWorldDir.getName()))), null);
+				ZipFileBackupPartFactory backupPartFactory = new ZipFileBackupPartFactory(
+						new File(WoeshBackupPlugin.this.backupDir, toBackupWorldDir.getName()));
+				WoeshBackupPlugin.this.backups.put(
+						new ZipFileBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
 			}
 		},
 		20 * 10); // 10 seconds delay (20 tps).
@@ -116,9 +118,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					"IOException while reading plugins ignore file. No files will be ignored during the next backup.");
 		}
 		File toBackupDir = new File("plugins");
-		this.backups.put(new ZipFileBackup(toBackupDir,
-				new ZipFileBackupPartFactory(new File(this.backupDir, toBackupDir.getName())), ignorePaths),
-				ignoreFile);
+		ZipFileBackupPartFactory backupPartFactory =
+				new ZipFileBackupPartFactory(new File(this.backupDir, toBackupDir.getName()));
+		this.backups.put(new ZipFileBackup(toBackupDir, backupPartFactory, this.getLogger(), ignorePaths), ignoreFile);
 		
 		// Schedule a task to generate initial backups if they do not exist or update existing
 		// backups every backupInterval minutes.
@@ -216,8 +218,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					continue iterateLoop;
 				}
 			}
-			this.backups.put(new ZipFileBackup(toBackupWorldDir,
-					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()))), null);
+			ZipFileBackupPartFactory backupPartFactory =
+					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()));
+			this.backups.put(new ZipFileBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
 		}
 		
 		// Update all backups on a seperate thread.
