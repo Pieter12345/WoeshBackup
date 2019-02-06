@@ -1,7 +1,8 @@
 package io.github.pieter12345.woeshbackup;
 
 import java.io.File;
-import java.util.List;
+import java.util.Collection;
+import java.util.Set;
 
 /**
  * Represents a backup.
@@ -58,7 +59,7 @@ public interface Backup {
 	 * to the to-backup directory and will be used as "{@link #getToBackupDir()} + separator + path".
 	 * Ignore paths specifying a directory should end with a file separator ('/' or '\').
 	 */
-	public void setIgnorePaths(List<String> ignorePaths);
+	public void setIgnorePaths(Collection<String> ignorePaths);
 	
 	/**
 	 * Gets the paths to files and directories to ignore for both backing up and restoring.
@@ -67,5 +68,5 @@ public interface Backup {
 	 * Ignore paths specifying a directory end with a file separator ('/' or '\').
 	 * When set to null or an empty list, no files will be ignored.
 	 */
-	public List<String> getIgnorePaths();
+	public Set<String> getIgnorePaths();
 }

@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -29,7 +29,7 @@ public class ZipFileBackup implements Backup {
 	
 	private final File toBackupDir;
 	private final BackupPartFactory backupPartFactory;
-	private List<String> ignorePaths;
+	private Set<String> ignorePaths;
 	
 	private static final DateFormat BACKUP_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss");
 	
@@ -51,7 +51,7 @@ public class ZipFileBackup implements Backup {
 	 * to the toBackupDir directory and will be used as "toBackupDir + separator + path".
 	 * Ignore paths specifying a directory should end with a file separator ('/' or '\').
 	 */
-	public ZipFileBackup(File toBackupDir, BackupPartFactory backupPartFactory, List<String> ignorePaths) {
+	public ZipFileBackup(File toBackupDir, BackupPartFactory backupPartFactory, Collection<String> ignorePaths) {
 		Objects.requireNonNull(toBackupDir);
 		Objects.requireNonNull(backupPartFactory);
 		this.toBackupDir = toBackupDir;
@@ -278,19 +278,21 @@ public class ZipFileBackup implements Backup {
 	}
 	
 	@Override
-	public void setIgnorePaths(List<String> ignorePaths) {
-		this.ignorePaths = (ignorePaths == null ? Collections.emptyList() : new ArrayList<String>(ignorePaths));
-		
-		// Set OS-specific file separator char.
-		for(int i = 0; i < this.ignorePaths.size(); i++) {
-			this.ignorePaths.set(i,
-					this.ignorePaths.get(i).replace('/', File.separatorChar).replace('\\', File.separatorChar));
+	public void setIgnorePaths(Collection<String> ignorePaths) {
+		if(ignorePaths == null) {
+			this.ignorePaths = Collections.emptySet();
+		} else {
+			// Copy set and set OS-specific file separator char.
+			this.ignorePaths = new HashSet<String>();
+			for(String ignorePath : ignorePaths) {
+				this.ignorePaths.add(ignorePath.replace('/', File.separatorChar).replace('\\', File.separatorChar));
+			}
 		}
 	}
 	
 	@Override
-	public List<String> getIgnorePaths() {
-		return Collections.unmodifiableList(this.ignorePaths);
+	public Set<String> getIgnorePaths() {
+		return Collections.unmodifiableSet(this.ignorePaths);
 	}
 	
 	/**
@@ -352,12 +354,13 @@ public class ZipFileBackup implements Backup {
 	private Map<String, BackupPart> getBackupState(List<BackupPart> sortedBackups) {
 		Map<String, BackupPart> stateMap = new HashMap<String, BackupPart>();
 		Set<String> removedFiles = new HashSet<String>();
+		IgnorePaths ignorePaths = new IgnorePaths(this.ignorePaths);
 		for(BackupPart backup : sortedBackups) {
 			Map<String, ChangeType> changes = backup.getChanges();
 			for(Entry<String, ChangeType> change : changes.entrySet()) {
 				String changePath = change.getKey();
 				if(!removedFiles.contains(changePath)
-						&& !stateMap.containsKey(changePath) && !this.ignorePaths.contains(changePath)) {
+						&& !stateMap.containsKey(changePath) && !ignorePaths.isIgnored(changePath)) {
 					switch(change.getValue()) {
 						case ADDITION:
 							stateMap.put(changePath, backup);

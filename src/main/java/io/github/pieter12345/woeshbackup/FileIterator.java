@@ -2,10 +2,11 @@ package io.github.pieter12345.woeshbackup;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.Stack;
 
 /**
@@ -15,9 +16,8 @@ import java.util.Stack;
 public class FileIterator implements Iterator<File> {
 	
 	private final File baseDir;
-	private final List<String> relativeIgnorePaths;
+	private final Set<String> relativeIgnorePaths;
 	private final Stack<File> dirStack = new Stack<File>();
-	private final int baseDirPathLength;
 	private final FileFilter fileFilter;
 	private File[] files;
 	private int filesIndex;
@@ -31,12 +31,12 @@ public class FileIterator implements Iterator<File> {
 	 * "baseDir.getAbsolutePath() + separator + relativeIgnorePath.get(x)".
 	 * Ignore paths that end with a path separator char will be interpreted as directories.
 	 */
-	public FileIterator(File baseDir, List<String> relativeIgnorePaths) {
+	public FileIterator(File baseDir, Collection<String> relativeIgnorePaths) {
 		this.baseDir = baseDir;
-		this.relativeIgnorePaths = new ArrayList<String>(relativeIgnorePaths);
-		this.baseDirPathLength = this.baseDir.getAbsolutePath().length() + 1; // Includes ending separator.
+		this.relativeIgnorePaths = new HashSet<String>(relativeIgnorePaths);
+		int baseDirPathLength = this.baseDir.getAbsolutePath().length() + 1; // Includes ending separator.
 		this.fileFilter = (file) -> !this.relativeIgnorePaths.contains(
-				file.getAbsolutePath().substring(this.baseDirPathLength) + (file.isDirectory() ? File.separator : ""));
+				file.getAbsolutePath().substring(baseDirPathLength) + (file.isDirectory() ? File.separator : ""));
 		
 		// Initialize the files, file index and next element.
 		this.files = this.baseDir.listFiles(this.fileFilter);
