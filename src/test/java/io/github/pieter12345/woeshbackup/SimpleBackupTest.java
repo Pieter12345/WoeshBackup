@@ -23,12 +23,12 @@ import io.github.pieter12345.woeshbackup.BackupPart.ChangeType;
 import io.github.pieter12345.woeshbackup.utils.TestUtils;
 
 /**
- * Tests the {@link ZipFileBackup} class.
+ * Tests the {@link SimpleBackup} class.
  * @author P.J.S. Kools
  */
-class ZipFileBackupTest {
+class SimpleBackupTest {
 	
-	static final File TO_BACKUP_DIR = new File(ZipFileBackupTest.class.getSimpleName() + "-temp");
+	static final File TO_BACKUP_DIR = new File(SimpleBackupTest.class.getSimpleName() + "-temp");
 	static final String FILE1 = "file1";
 	static boolean toBackupDirWasCreated = false;
 	static List<String> toBackupDirRelPaths;
@@ -70,7 +70,7 @@ class ZipFileBackupTest {
 	@Test
 	void testGetToBackupDir() {
 		File toBackupDir = mock(File.class);
-		Backup backup = new ZipFileBackup(toBackupDir, mock(BackupPartFactory.class), null);
+		Backup backup = new SimpleBackup(toBackupDir, mock(BackupPartFactory.class), null);
 		assertThat(backup.getToBackupDir()).isEqualTo(toBackupDir);
 	}
 	
@@ -82,7 +82,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, null);
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -117,7 +117,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -149,7 +149,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -181,7 +181,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -215,7 +215,7 @@ class ZipFileBackupTest {
 		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(existingBackupPart));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the backup.
 		backup.backup();
@@ -235,7 +235,7 @@ class ZipFileBackupTest {
 	}
 	
 	/**
-	 * Tests that {@link ZipFileBackup#merge(long)} properly calls {@link BackupPart#merge(BackupPart)} on the
+	 * Tests that {@link SimpleBackup#merge(long)} properly calls {@link BackupPart#merge(BackupPart)} on the
 	 * backup parts that should be merged. Also tests that the merged backup parts will be deleted afterwards.
 	 * @throws Exception
 	 */
@@ -257,7 +257,7 @@ class ZipFileBackupTest {
 				Arrays.asList(backupPart1, backupPart2, backupPart3, backupPart4, backupPart5));
 		
 		// Create backup.
-		Backup backup = new ZipFileBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
 		
 		// Perform the merge between backups {1, 2, 3} and {4, 5}.
 		backup.merge(35000);
