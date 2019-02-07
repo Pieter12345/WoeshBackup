@@ -242,7 +242,8 @@ public class SimpleBackup implements Backup {
 					try {
 						backup.readAll((fileEntry) -> {
 							if(changes.containsKey(fileEntry.getRelativePath())) {
-								restoreWriter.add(fileEntry.getRelativePath(), fileEntry.getFileStream());
+								restoreWriter.add(this.toBackupDir.getName() + File.separator
+										+ fileEntry.getRelativePath(), fileEntry.getFileStream());
 							}
 						});
 					} catch (IOException e) {
