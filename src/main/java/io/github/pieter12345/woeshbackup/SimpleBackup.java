@@ -225,6 +225,7 @@ public class SimpleBackup implements Backup {
 			
 			// Fill the backup restore writer with content from the backup parts.
 			Set<String> handledFiles = new HashSet<String>();
+			IgnorePaths ignorePaths = new IgnorePaths(this.ignorePaths);
 			for(int i = sortedBackups.size() - 1; i >= 0; i--) {
 				BackupPart backup = sortedBackups.get(i);
 				Map<String, ChangeType> changes = backup.getChanges();
@@ -232,7 +233,8 @@ public class SimpleBackup implements Backup {
 					Entry<String, ChangeType> change = it.next();
 					String changePath = change.getKey();
 					boolean changeAlreadyHandled = !handledFiles.add(changePath);
-					if(changeAlreadyHandled || change.getValue() == ChangeType.REMOVAL) {
+					if(changeAlreadyHandled
+							|| change.getValue() == ChangeType.REMOVAL || ignorePaths.isIgnored(changePath)) {
 						it.remove();
 					}
 				}
