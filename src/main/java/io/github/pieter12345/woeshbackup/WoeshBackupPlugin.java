@@ -733,16 +733,16 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				final BackupException finalEx = ex;
 				if(WoeshBackupPlugin.this.isEnabled()) {
 					Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> {
-						if(debugEnabled) {
-							WoeshBackupPlugin.this.getLogger().severe("An Exception occurred "
-									+ "while generating a snapshot for backup: "
-									+ finalBackup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
-									+ Utils.getStacktrace(finalEx));
-						}
 						if(finalEx == null) {
 							sender.sendMessage("Succesfully generated snapshot for backup: "
 									+ finalBackup.getToBackupDir().getName());
 						} else {
+							if(debugEnabled) {
+								WoeshBackupPlugin.this.getLogger().severe("An Exception occurred "
+										+ "while generating a snapshot for backup: "
+										+ finalBackup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
+										+ Utils.getStacktrace(finalEx));
+							}
 							if(finalEx.getCause() == null) {
 								sender.sendMessage("Failed to generate snapshot: "
 										+ finalBackup.getToBackupDir().getName()
