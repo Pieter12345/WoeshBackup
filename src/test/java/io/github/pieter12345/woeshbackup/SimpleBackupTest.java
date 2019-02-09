@@ -289,6 +289,63 @@ class SimpleBackupTest {
 	}
 	
 	/**
+	 * Tests that {@link SimpleBackup#restore(long, BackupRestoreWriterFactory)} on a single backup part does include
+	 * file and directory additions while not including file and directory removals.
+	 * @throws Exception
+	 */
+	@Test
+	void testRestoreSingleBackupPart() throws Exception {
+		
+		// Create mocked backend.
+		String file1 = "file1";
+		String dir1 = "dir1" + File.separator;
+		String file2 = "file2";
+		String dir2 = "dir2" + File.separator;
+		long latestBackupPartDate = 10000L;
+		Map<String, ChangeType> changes = new HashMap<String, ChangeType>();
+		Map<String, InputStream> inStreams = new HashMap<String, InputStream>();
+		changes.put(file1, ChangeType.ADDITION);
+		inStreams.put(file1, mock(InputStream.class));
+		changes.put(dir1, ChangeType.ADDITION);
+		inStreams.put(dir1, null);
+		changes.put(file2, ChangeType.REMOVAL);
+		inStreams.put(file2, mock(InputStream.class));
+		changes.put(dir2, ChangeType.REMOVAL);
+		inStreams.put(dir2, null);
+		BackupPart backupPart = mockBackupPart(latestBackupPartDate, changes, null, inStreams);
+		BackupPart newBackupPart = mock(BackupPart.class);
+		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart, Arrays.asList(backupPart));
+		
+		// Create mocked restore backup writer.
+		BackupRestoreWriter restoreWriter = mock(BackupRestoreWriter.class);
+		BackupRestoreWriterFactory restoreWriterFactory = mock(BackupRestoreWriterFactory.class);
+		doReturn(restoreWriter).when(restoreWriterFactory).create(anyLong());
+		
+		// Create backup.
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		
+		// Perform restore.
+		backup.restore(latestBackupPartDate + 10000L, restoreWriterFactory);
+		
+		// Verify that exactly one restore writer was requested from the factory with the proper timestamp.
+		verify(restoreWriterFactory, times(1)).create(latestBackupPartDate);
+		verifyNoMoreInteractions(restoreWriterFactory);
+		
+		// Verify that the files were passed to the restore writer after opening and before closing the writer.
+		verify(restoreWriter, times(2)).add(anyString(), any());
+		verify(restoreWriter, times(1)).open();
+		verify(restoreWriter, times(1)).close();
+		verifyNoMoreInteractions(restoreWriter);
+		for(String relPath : new String[] {file1, dir1}) {
+			InOrder inOrder = inOrder(restoreWriter);
+			inOrder.verify(restoreWriter).open();
+			inOrder.verify(restoreWriter).add(
+					TO_BACKUP_DIR.getName() + File.separator + relPath, inStreams.get(relPath));
+			inOrder.verify(restoreWriter).close();
+		}
+	}
+	
+	/**
 	 * Creates a {@link BackupPartFactory} mock.
 	 * @param newBackupPart - The BackupPart to return on {@link BackupPartFactory#createNew(long)}.
 	 * The passed long will be set as return value for {@link BackupPart#getCreationTime()}.
@@ -346,6 +403,28 @@ class SimpleBackupTest {
 	 */
 	static BackupPart mockBackupPart(Long creationTime, Map<String, ChangeType> changes,
 			List<String> changedFileRelPaths) throws InvocationTargetException, IOException {
+		return mockBackupPart(creationTime, changes, changedFileRelPaths, null);
+	}
+	
+	/**
+	 * Creates a {@link BackupPart} mock.
+	 * @param creationTime - The creation time of the backup or null to not set any.
+	 * @param changes - The changes returned by {@link BackupPart#getChanges()}.
+	 * @param changedFileRelPaths - A list of paths for which {@link BackupPart#contains(String, File, boolean)}
+	 * will be forced to return false if it comes to comparing files. This won't affect the return value for
+	 * directories, null file arguments, when the relPath is not in the changes and when compareContents is false.
+	 * Passing null or an empty list yields the same result.
+	 * @param fileContentsMap - A map containing {@link InputStream}s with their relative paths as key.
+	 * These streams are returned through {@link BackupPart#readAll(FileEntryHandler)}.
+	 * When a relative path does not appear in this map, a mocked {@link InputStream} will be used.
+	 * Keys that do not appear in the passed changes map will be ignored.
+	 * @return The mocked {@link BackupPart}.
+	 * @throws InvocationTargetException
+	 * @throws IOException
+	 */
+	static BackupPart mockBackupPart(
+			Long creationTime, Map<String, ChangeType> changes, List<String> changedFileRelPaths,
+			Map<String, InputStream> fileContentsMap) throws InvocationTargetException, IOException {
 		
 		// Create the mocked backup part.
 		BackupPart backupPart = mock(BackupPart.class);
@@ -356,7 +435,9 @@ class SimpleBackupTest {
 		}
 		
 		// Define BackupPart.getChanges().
-		doReturn(changes).when(backupPart).getChanges();
+		if(changes != null) {
+			doReturn(new HashMap<String, ChangeType>(changes)).when(backupPart).getChanges();
+		}
 		
 		// Define BackupPart.readAll(FileEntryHandler) to pass a new FileEntry
 		// for all changes with a mocked InputStream to the handler.
@@ -364,7 +445,9 @@ class SimpleBackupTest {
 			FileEntryHandler handler = invocation.getArgument(0);
 			for(String change : changes.keySet()) {
 				try {
-					handler.handle(new FileEntry(change, mock(InputStream.class)));
+					InputStream inStream = (fileContentsMap != null && fileContentsMap.containsKey(change)
+							? fileContentsMap.get(change) : mock(InputStream.class));
+					handler.handle(new FileEntry(change, inStream));
 				} catch (Throwable t) {
 					throw new InvocationTargetException(t);
 				}

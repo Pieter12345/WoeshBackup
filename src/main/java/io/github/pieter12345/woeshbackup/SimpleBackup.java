@@ -231,10 +231,8 @@ public class SimpleBackup implements Backup {
 				for(Iterator<Entry<String, ChangeType>> it = changes.entrySet().iterator(); it.hasNext();) {
 					Entry<String, ChangeType> change = it.next();
 					String changePath = change.getKey();
-					if(handledFiles.contains(changePath)) {
-						it.remove();
-					} else if(change.getValue() == ChangeType.REMOVAL) {
-						handledFiles.add(changePath);
+					boolean changeAlreadyHandled = !handledFiles.add(changePath);
+					if(changeAlreadyHandled || change.getValue() == ChangeType.REMOVAL) {
 						it.remove();
 					}
 				}
@@ -242,6 +240,7 @@ public class SimpleBackup implements Backup {
 					try {
 						backup.readAll((fileEntry) -> {
 							if(changes.containsKey(fileEntry.getRelativePath())) {
+								changes.remove(fileEntry.getRelativePath());
 								restoreWriter.add(this.toBackupDir.getName() + File.separator
 										+ fileEntry.getRelativePath(), fileEntry.getFileStream());
 							}
@@ -250,6 +249,11 @@ public class SimpleBackup implements Backup {
 						throw new BackupException("Failed to read backup part to restore from.", e);
 					} catch (InvocationTargetException e) {
 						throw new BackupException("Failed to write to backup restore writer.", e.getTargetException());
+					}
+					if(!changes.isEmpty()) {
+						throw new BackupException("Backup part " + this.toBackupDir.getName() + "/" + backup.getName()
+								+ " does not contain files that should be there according to its meta file: "
+								+ Utils.glueIterable(changes.keySet(), (change) -> change, ", ") + ".");
 					}
 				}
 			}

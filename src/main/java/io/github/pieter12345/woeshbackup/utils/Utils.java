@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 
 /**
  * Utils class.
@@ -74,5 +75,33 @@ public abstract class Utils {
 		if(Thread.currentThread().isInterrupted()) {
 			throw new InterruptedException();
 		}
+	}
+	
+	/**
+	 * Glues elements in an iterable together into a string with the given glue.
+	 * @param iterable - The iterable containing the elements to generate a string with.
+	 * @param stringifier - Used to convert object T into a string.
+	 * @param glue - The glue used between elements in the iterable.
+	 * @return The glued string(e1+glue+e2+glue+e3 etc) or an empty string if no elements were found.
+	 */
+	public static <T> String glueIterable(Iterable<T> iterable, Stringifier<T> stringifier, String glue) {
+		Iterator<T> it = iterable.iterator();
+		if(!it.hasNext()) {
+			return "";
+		}
+		StringBuilder str = new StringBuilder(stringifier.toString(it.next()));
+		while(it.hasNext()) {
+			str.append(glue).append(stringifier.toString(it.next()));
+		}
+		return str.toString();
+	}
+	
+	/**
+	 * Used to specify how type T should be converted to a String.
+	 * @author P.J.S. Kools
+	 * @param <T> The type.
+	 */
+	public static interface Stringifier<T> {
+		String toString(T object);
 	}
 }
