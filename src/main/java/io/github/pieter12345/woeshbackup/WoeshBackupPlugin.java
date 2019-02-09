@@ -714,6 +714,11 @@ public class WoeshBackupPlugin extends JavaPlugin {
 //				// Remove previously generated snapshots.
 //				WoeshBackupPlugin.this.removeGeneratedSnapshots();
 				
+				// Create the snapshots directory if it does not yet exist.
+				if(!WoeshBackupPlugin.this.snapshotsDir.exists()) {
+					WoeshBackupPlugin.this.snapshotsDir.mkdirs();
+				}
+				
 				// Generate a snapshot from the backup.
 				BackupException ex = null;
 				try {
