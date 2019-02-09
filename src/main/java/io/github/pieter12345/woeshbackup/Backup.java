@@ -1,7 +1,9 @@
 package io.github.pieter12345.woeshbackup;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -46,6 +48,14 @@ public interface Backup {
 	 * @return The directory that is being backupped by this {@link Backup}
 	 */
 	public File getToBackupDir();
+	
+	/**
+	 * Gets the timestamps thresholds to which this {@link Backup} can be restored.
+	 * Restoring to a time between these thresholds will snap to the closest threshold before the given restore date.
+	 * @return The timestamps thresholds to which this {@link Backup} can be restored.
+	 * @throws IOException When an I/O error has occurred while obtaining the restore date thresholds from the storage.
+	 */
+	public List<Long> getRestoreDateThresholds() throws IOException;
 	
 	/**
 	 * Gets the free usable space within the storage. This value often is an estimation by the OS or database software.

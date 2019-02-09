@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.text.DateFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -48,6 +49,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	public static boolean debugEnabled;
 	
 	private static final String NO_PERMS_MSG = ChatColor.RED + "You do not have permission to use this command.";
+	private static final DateFormat RESTORE_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
 	
 	public WoeshBackupPlugin() {
 	}
@@ -846,9 +848,23 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				}
 				return ret;
 			}
-			if(args.length == 3 && args[2].trim().isEmpty()) {
+			if(args.length == 3) {
 				List<String> ret = new ArrayList<String>();
-				ret.add(new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").format(new Date()));
+				for(Backup backup : this.backups.keySet()) {
+					if(backup.getToBackupDir().getName().equalsIgnoreCase(args[1])) {
+						try {
+							for(Long restoreDateThresh : backup.getRestoreDateThresholds()) {
+								String restoreDate = RESTORE_DATE_FORMAT.format(new Date(restoreDateThresh));
+								if(restoreDate.startsWith(args[2])) {
+									ret.add(restoreDate);
+								}
+							}
+						} catch (IOException e) {
+							this.getLogger().warning("An exception occurred while tabcompleting backup part dates."
+									+ " Here's the stacktrace: " + Utils.getStacktrace(e));
+						}
+					}
+				}
 				return ret;
 			}
 		}

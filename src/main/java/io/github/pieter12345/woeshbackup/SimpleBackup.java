@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -284,6 +285,15 @@ public class SimpleBackup implements Backup {
 	@Override
 	public File getToBackupDir() {
 		return this.toBackupDir;
+	}
+	
+	@Override
+	public List<Long> getRestoreDateThresholds() throws IOException {
+		List<Long> ret = new ArrayList<Long>();
+		for(BackupPart part : this.backupPartFactory.readAllBefore(-1)) {
+			ret.add(part.getCreationTime());
+		}
+		return ret;
 	}
 	
 	@Override
