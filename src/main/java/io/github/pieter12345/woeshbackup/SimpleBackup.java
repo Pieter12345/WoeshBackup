@@ -169,8 +169,8 @@ public class SimpleBackup implements Backup {
 			} catch (IOException e) {
 				throw new BackupException("Failed to merge backup parts.", e);
 			} catch (CorruptedBackupException e) {
-				throw new BackupException(
-						"Failed to merge backup part with corrupted backup part: " + e.getBackup().getName(), e);
+				throw new BackupException("Failed to merge backup part with corrupted backup part: "
+						+ this.toBackupDir.getName() + "/" + e.getBackup().getName(), e);
 			}
 		}
 		try {
@@ -342,16 +342,20 @@ public class SimpleBackup implements Backup {
 			try {
 				backupPart.readChanges();
 			} catch (IOException e) {
-				throw new BackupException("Failed to read changes from backup: " + backupPart.getName() + ".", e);
+				throw new BackupException("Failed to read changes from backup: "
+						+ this.toBackupDir.getName() + "/" + backupPart.getName() + ".", e);
 			} catch (CorruptedBackupException e) {
-				this.logger.warning("Found corrupted backup: " + backupPart.getName());
+				this.logger.warning("Found corrupted backup: "
+						+ this.toBackupDir.getName() + "/" + backupPart.getName());
 				try {
 					e.getBackup().delete();
 					it.remove();
 				} catch (IOException e1) {
-					this.logger.severe("Failed to remove corrupted backup: " + backupPart.getName()
+					this.logger.severe("Failed to remove corrupted backup: "
+							+ this.toBackupDir.getName() + "/" + backupPart.getName()
 							+ ". Here's the stacktrace:\n" + Utils.getStacktrace(e1));
-					throw new BackupException("Failed to remove corrupted backup: " + backupPart.getName(), e1);
+					throw new BackupException("Failed to remove corrupted backup: "
+							+ this.toBackupDir.getName() + "/" + backupPart.getName(), e1);
 				}
 			}
 		}
@@ -380,7 +384,8 @@ public class SimpleBackup implements Backup {
 							break;
 						default:
 							throw new InternalError("Unsupported change type: '"
-									+ change.getValue() + "' in backup: " + backup.getName());
+									+ change.getValue() + "' in backup: "
+									+ this.toBackupDir.getName() + "/" + backup.getName());
 					}
 				}
 			}
