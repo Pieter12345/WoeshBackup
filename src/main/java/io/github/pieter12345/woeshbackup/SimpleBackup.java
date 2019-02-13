@@ -121,9 +121,9 @@ public class SimpleBackup implements Backup {
 		}
 		
 		// Add all remaining files in the state map as deletions. These did not appear in the current files.
-		for(String relativePath : stateMap.keySet()) {
+		for(String relPath : stateMap.keySet()) {
 			try {
-				backup.addRemoval(relativePath);
+				backup.addRemoval(relPath);
 			} catch (IOException e) {
 				throw new BackupException("Failed to add removal to backup.", e);
 			}
@@ -385,7 +385,8 @@ public class SimpleBackup implements Backup {
 		Map<String, BackupPart> stateMap = new HashMap<String, BackupPart>();
 		Set<String> removedFiles = new HashSet<String>();
 		IgnorePaths ignorePaths = new IgnorePaths(this.ignorePaths);
-		for(BackupPart backup : sortedBackups) {
+		for(int i = sortedBackups.size() - 1; i >= 0; i--) {
+			BackupPart backup = sortedBackups.get(i);
 			Map<String, ChangeType> changes = backup.getChanges();
 			for(Entry<String, ChangeType> change : changes.entrySet()) {
 				String changePath = change.getKey();
