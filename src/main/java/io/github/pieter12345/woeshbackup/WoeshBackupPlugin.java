@@ -10,7 +10,6 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -32,18 +31,17 @@ import io.github.pieter12345.woeshbackup.utils.Utils;
  * WoeshBackupPlugin class.
  * This is the main class that will be loaded by Bukkit.
  * @author P.J.S. Kools
- * @version 0.0.1-SNAPSHOT
  * @since 10-04-2016
  */
 public class WoeshBackupPlugin extends JavaPlugin {
 	
 	// Variables & Constants.
-	private File backupDir;
-	private File snapshotsDir;
+	private File backupDir = null;
+	private File snapshotsDir = null;
 	private Map<Backup, File> backups;
 	private Thread backupThread = null;
-	private BukkitTask backupIntervalTask;
-	private int backupIntervalSeconds; // [sec].
+	private BukkitTask backupIntervalTask = null;
+	private int backupIntervalSeconds = -1; // [sec].
 	private long timeToKeepBackups; // [ms].
 	private int minDiskSpaceToAllowBackup; // [MB].
 	public static boolean debugEnabled;
@@ -54,59 +52,17 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	public WoeshBackupPlugin() {
 	}
 	
-	// onEnable will run when the plugin is enabled.
 	@Override
 	public void onEnable() {
 		
-		// Create the default config file if no "Config.yml" is present.
-		this.saveDefaultConfig();
-		
-		// Read and validate values from the config.
-		String backupDirPath = this.getConfig().getString("backupDirPath", "woeshBackups");
-		String snapshotsDirPath = this.getConfig().getString("snapshotsDirPath", "snapshots");
-		boolean autoBackup = this.getConfig().getBoolean("autoBackup.enabled", true);
-		this.backupIntervalSeconds = this.getConfig().getInt("autobackup.interval", 3600);
-		if(this.backupIntervalSeconds <= 60) {
-			this.getLogger().warning("Invalid config entry found: autobackup.interval has to be >= 60 [sec]. Found: "
-					+ this.backupIntervalSeconds + ". Using default value: 3600 [sec].");
-			this.backupIntervalSeconds = 3600;
-		}
-		this.timeToKeepBackups = 1000 * this.getConfig().getInt("maxBackupAge", 1814400);
-		if(this.timeToKeepBackups <= 1000 * 3600) {
-			this.getLogger().warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
-					+ (this.timeToKeepBackups / 1000) + ". Using default value: 1814400 [sec] (21 days).");
-			this.timeToKeepBackups = 1000 * 1814400;
-		}
-		this.minDiskSpaceToAllowBackup = this.getConfig().getInt("dontBackupIfLessThanThisSpaceIsAvailableInMB", 1000);
-		debugEnabled = this.getConfig().getBoolean("debugEnabled", false);
-		
-		// Define the directory in which backups will be stored.
-		this.backupDir = new File(new File("").getAbsolutePath(), backupDirPath);
-		this.snapshotsDir = new File(new File("").getAbsolutePath(), snapshotsDirPath);
-		
-		// Initialize backups and backupThreads list.
+		// Initialize backups map.
 		this.backups = new HashMap<Backup, File>();
 		
-		// Create a WoeshBackup for all worlds. The delay is there to allow the worlds to load.
-		Bukkit.getScheduler().runTaskLater(this, () -> {
-			
-			// Add a WoeshBackup for all worlds that are loaded but do not have one yet.
-			Iterator<World> worldIterator = Bukkit.getWorlds().iterator();
-			iterateLoop:
-			while(worldIterator.hasNext()) {
-				File toBackupWorldDir = worldIterator.next().getWorldFolder().getAbsoluteFile();
-				for(Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
-					if(backup.getToBackupDir().equals(toBackupWorldDir)) {
-						continue iterateLoop;
-					}
-				}
-				ZipFileBackupPartFactory backupPartFactory = new ZipFileBackupPartFactory(
-						new File(WoeshBackupPlugin.this.backupDir, toBackupWorldDir.getName()));
-				WoeshBackupPlugin.this.backups.put(
-						new SimpleBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
-			}
-		},
-		20 * 10); // 10 seconds delay (20 tps).
+		// Load the config file, creating the default config if it did not exist.
+		this.loadConfig();
+		
+		// Create a WoeshBackup for all worlds. The delay is there to allow the worlds to load (10 sec delay @ 20tps).
+		Bukkit.getScheduler().runTaskLater(this, () -> WoeshBackupPlugin.this.addBackupsForWorlds(), 20 * 10);
 		
 		// Create a WoeshBackup for the plugins directory.
 //		File serverBaseDir = Bukkit.getServer().getWorldContainer();
@@ -124,8 +80,8 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				new ZipFileBackupPartFactory(new File(this.backupDir, toBackupDir.getName()));
 		this.backups.put(new SimpleBackup(toBackupDir, backupPartFactory, this.getLogger(), ignorePaths), ignoreFile);
 		
-		// Schedule a task to generate initial backups if they do not exist or update existing
-		// backups every backupInterval minutes.
+		// Schedule a task to update the backups every backupInterval minutes.
+		boolean autoBackup = this.getConfig().getBoolean("autoBackup.enabled", true);
 		if(autoBackup) {
 			long timeSinceLastBackupMillis = System.currentTimeMillis() - this.getPersistentLastBackupDate();
 			int timeUntilNextBackupSec = this.backupIntervalSeconds - (int) (timeSinceLastBackupMillis / 1000);
@@ -133,14 +89,20 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		}
 		
 		// Remove existing generated snapshots.
-		new Thread(() -> WoeshBackupPlugin.this.removeGeneratedSnapshots()).start();
+		/* TODO - Perform on the main thread instead? (Makes free disk space up-to-date and probably isn't slow?).
+		 */
+		new Thread(() -> {
+			int count = WoeshBackupPlugin.this.removeGeneratedSnapshots();
+			if(count > 0) {
+				this.getLogger().info("Removed " + count + " snapshots.");
+			}
+		}).start();
 		
 		// Print disk space feedback.
 		this.getLogger().info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");
 		
 	}
 	
-	// onDisable will run when the plugin is disabled.
 	@Override
 	public void onDisable() {
 		this.backupDir = null;
@@ -152,10 +114,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * startBackupIntervalTask method.
 	 * Schedules the recurring backup task to run after the given initial delay.
 	 * Does nothing if the backup task is already running.
-	 * @param initialDelaySeconds - The amount of seconds before the task will run.
+	 * @param initialDelaySeconds - The delay before the task will run in seconds.
 	 */
 	private void startBackupIntervalTask(int initialDelaySeconds) {
 		
@@ -177,11 +138,15 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * performBackup method.
-	 * Creates an initial backup if it did't exist or creates an update backup for the existing backup.
-	 * This is done for all WoeshBackup objects.
+	 * Creates a new backup for all {@link Backup} objects. Does nothing if a backup is already in progress.
 	 */
 	private void performBackup() {
+		
+		// Return if backups are still/already in progress.
+		if(this.isBackupInProgress()) {
+			WoeshBackupPlugin.this.getLogger().warning("Skipping backup because a backup is already in progress.");
+			return;
+		}
 		
 		// Create the backup directory if it does not exist.
 		if(!this.backupDir.isDirectory()) {
@@ -192,7 +157,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			}
 		}
 		
-		// Check if there is at least 1GB of free disk space. Don't backup otherwise.
+		// Abort backup if there is less than some minimum amount free disk space.
 		long availableDiskSpace = this.backupDir.getUsableSpace();
 		if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
 			WoeshBackupPlugin.this.getLogger().severe("Skipping backups since less than "
@@ -201,37 +166,20 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			return;
 		}
 		
-		// Return if backups are still/already in progress.
-		if(this.isBackupInProgress()) {
-			WoeshBackupPlugin.this.getLogger().warning("Skipping backup because a backup is already in progress.");
-			return;
-		}
-		
 		// Give feedback about starting the backup.
 		Bukkit.broadcastMessage("[WoeshBackup] Starting backups.");
 		
 		// Add a WoeshBackup for all worlds that are loaded but do not have one yet.
-		Iterator<World> worldIterator = Bukkit.getWorlds().iterator();
-		iterateLoop:
-		while(worldIterator.hasNext()) {
-			File toBackupWorldDir = worldIterator.next().getWorldFolder().getAbsoluteFile();
-			for(Backup backup : this.backups.keySet()) {
-				if(backup.getToBackupDir().equals(toBackupWorldDir)) {
-					continue iterateLoop;
-				}
-			}
-			ZipFileBackupPartFactory backupPartFactory =
-					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()));
-			this.backups.put(new SimpleBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
-		}
+		this.addBackupsForWorlds();
 		
-		// Update all backups on a seperate thread.
-		final long mergeBeforeDate = System.currentTimeMillis() - this.timeToKeepBackups;
+		// Update all backups on a separate thread.
+		final long currentTime = System.currentTimeMillis();
+		final long mergeBeforeDate = currentTime - this.timeToKeepBackups;
 		
 		this.backupThread = new Thread() {
 			@Override
 			public void run() {
-				final long fullBackupStartTime = System.currentTimeMillis();
+				final long fullBackupStartTime = currentTime;
 				for(final Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
 					
 					// Return if the thread has been interrupted (cancelled / server shutting down).
@@ -244,35 +192,35 @@ public class WoeshBackupPlugin extends JavaPlugin {
 							"Starting backup: " + backup.getToBackupDir().getName() + ".");
 					final long singleBackupStartTime = System.currentTimeMillis();
 					
-					// Check if the backup directory has the same name as a world.
-					// If it does, disable autosave for that world and save it.
-					Object[] retInfo = new Object[] {false, null};
-					try {
-						retInfo = Bukkit.getScheduler().callSyncMethod(
-								WoeshBackupPlugin.this, new Callable<Object[]>() {
-							@Override
-							public Object[] call() throws Exception {
-								World world = Bukkit.getWorld(backup.getToBackupDir().getName());
-								if(world != null) {
-									boolean isAutoSave = world.isAutoSave();
-									world.setAutoSave(false);
-									world.save();
-									return new Object[] {isAutoSave, world};
-								}
-								return new Object[] {false, null};
-							}
-						}).get();
-					} catch (InterruptedException e) {
-						this.interrupt(); // Make sure the interrupt flag is set.
-					} catch (ExecutionException e) {
-						// Never happens.
-						e.printStackTrace();
-					}
-					final boolean wasAutoSaveEnabled = (boolean) retInfo[0];
-					final World world = (World) retInfo[1];
-					
 					Exception ex = null;
 					try {
+						
+						// Check if the backup directory has the same name as a world.
+						// If it does, disable autosave for that world and save it.
+						Object[] retInfo = new Object[] {false, null};
+						try {
+							retInfo = Bukkit.getScheduler().callSyncMethod(
+									WoeshBackupPlugin.this, new Callable<Object[]>() {
+								@Override
+								public Object[] call() throws Exception {
+									World world = Bukkit.getWorld(backup.getToBackupDir().getName());
+									if(world != null) {
+										boolean isAutoSave = world.isAutoSave();
+										world.setAutoSave(false);
+										world.save();
+										return new Object[] {isAutoSave, world};
+									}
+									return new Object[] {false, null};
+								}
+							}).get();
+						} catch (InterruptedException e) {
+							throw e;
+						} catch (ExecutionException e) {
+							// Never happens.
+							throw new Error(e);
+						}
+						final boolean wasAutoSaveEnabled = (boolean) retInfo[0];
+						final World world = (World) retInfo[1];
 						
 						// Merge (and remove) old backups.
 						try {
@@ -291,20 +239,15 @@ public class WoeshBackupPlugin extends JavaPlugin {
 						} catch (Exception e) {
 							ex = e;
 						}
+						
+						// Re-enable auto-save for the world if it was disabled.
+						if(wasAutoSaveEnabled && world != null) {
+							Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> world.setAutoSave(true));
+						}
 					} catch (InterruptedException e) {
 						WoeshBackupPlugin.this.getLogger().warning("Backup was interrupted during execution: "
 								+ backup.getToBackupDir().getName());
 						return;
-					}
-					
-					// Re-enable auto-save for the world if it was disabled.
-					if(wasAutoSaveEnabled && world != null) {
-						Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, new Runnable() {
-							@Override
-							public void run() {
-								world.setAutoSave(true);
-							}
-						});
 					}
 					
 					// Send feedback to console.
@@ -339,25 +282,38 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				WoeshBackupPlugin.this.getLogger().info(String.format("Backups finished in %.0f sec.", timeElapsed));
 				
 				// Allow a new backup to start.
-				Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, new Runnable() {
-					@Override
-					public void run() {
-						WoeshBackupPlugin.this.backupThread = null;
-					}
-				});
+				Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> WoeshBackupPlugin.this.backupThread = null);
 				
 			}
 		};
+		this.backupThread.setName("WoeshBackup Backup Thread");
 		this.backupThread.start();
 	}
 	
 	/**
-	 * loadConfig method.
+	 * Adds a backup for all loaded worlds. If a world already has a corresponding backup, it is ignored.
+	 */
+	private void addBackupsForWorlds() {
+		iterateLoop:
+		for(World world : Bukkit.getWorlds()) {
+			File toBackupWorldDir = world.getWorldFolder().getAbsoluteFile();
+			for(Backup backup : this.backups.keySet()) {
+				if(backup.getToBackupDir().equals(toBackupWorldDir)) {
+					continue iterateLoop;
+				}
+			}
+			ZipFileBackupPartFactory backupPartFactory =
+					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()));
+			this.backups.put(new SimpleBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
+		}
+	}
+	
+	/**
 	 * (Re)loads the "config.yml" file and applies made changes.
 	 */
 	private void loadConfig() {
 		
-		// Create the default config file if no "Config.yml" is present.
+		// Create the default config file if no "config.yml" is present.
 		this.saveDefaultConfig();
 		
 		// Reload the config.
@@ -375,11 +331,11 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		}
 		this.timeToKeepBackups = 1000 * this.getConfig().getInt("maxBackupAge", 1814400);
 		if(this.timeToKeepBackups <= 1000 * 3600) {
-			this.getLogger().warning("Invalid config entry found: autobackup.interval has to be >= 3600 [sec]. Found: "
+			this.getLogger().warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
 					+ (this.timeToKeepBackups / 1000) + ". Using default value: 1814400 [sec] (21 days).");
 			this.timeToKeepBackups = 1000 * 1814400;
 		}
-		this.minDiskSpaceToAllowBackup = this.getConfig().getInt("dontBackupIfLessThanThisSpaceIsAvailableInMB", 1000);
+		this.minDiskSpaceToAllowBackup = this.getConfig().getInt("dontBackupIfLessThanThisSpaceIsAvailableInMB", 5000);
 		if(this.minDiskSpaceToAllowBackup < 1000) {
 			this.getLogger().warning(
 					"Invalid config entry found: dontBackupIfLessThanThisSpaceIsAvailableInMB has to be >= 1000 [MB]."
@@ -390,8 +346,8 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		debugEnabled = this.getConfig().getBoolean("debugEnabled", false);
 		
 		// Set the directories in which backups/snapshots will be stored if they have changed.
-		File backupDir = new File(new File("").getAbsolutePath() + "/" + backupDirPath).getAbsoluteFile();
-		File snapshotsDir = new File(new File("").getAbsolutePath() + "/" + snapshotsDirPath).getAbsoluteFile();
+		File backupDir = new File(new File("").getAbsoluteFile(), backupDirPath);
+		File snapshotsDir = new File(new File("").getAbsoluteFile(), snapshotsDirPath);
 		if(!backupDir.equals(this.backupDir)) {
 			this.backupDir = backupDir;
 			for(Backup backup : this.backups.keySet()) {
@@ -879,7 +835,6 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * removeGeneratedSnapshots method.
 	 * Removes all generated snapshots from the snapshots directory.
 	 * @return The number of removed snapshots if the removal was succesful or -1 if one or multiple snapshots
 	 * could not be removed.
@@ -887,7 +842,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	private int removeGeneratedSnapshots() {
 		File[] snapDirs = this.snapshotsDir.listFiles();
 		if(snapDirs == null) {
-			return 0; // The snapshots directory was already empty.
+			return 0; // The snapshots directory does not exist or an I/O error has occurred.
 		}
 		boolean success = true;
 		int count = 0;
@@ -899,13 +854,18 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				if(snapDirFiles == null) {
 					continue; // An I/O error occurred, skip the directory.
 				}
+				boolean snapDirEmpty = true;
 				for(File file : snapDirFiles) {
 					if(file.isFile() && snapshotPattern.matcher(file.getName()).matches()) {
-						WoeshBackupPlugin.this.getLogger().info(
-								"Removing snapshot: " + snapDir.getName() + "/" + file.getName());
+						this.getLogger().info("Removing snapshot: " + snapDir.getName() + "/" + file.getName());
 						success = success && file.delete();
 						count++;
+					} else {
+						snapDirEmpty = false;
 					}
+				}
+				if(snapDirEmpty) {
+					snapDir.delete();
 				}
 			}
 		}
@@ -913,9 +873,8 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * setPersistentLastBackupDate method.
-	 * Sets the time a backup was last performed.
-	 * @param time - The time when the last backup started.
+	 * Sets the time on which a backup was last performed.
+	 * @param time - The time on which the last backup finished.
 	 * @throws IOException - When the time could not be set in the ".lastBackup" file as lastModified time.
 	 */
 	private void setPersistentLastBackupDate(long time) throws IOException {
@@ -929,9 +888,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * getPersistentLastBackupDate method.
-	 * @return The last known time a backup was created according to the lastBackup.txt file lastModified timestamp
-	 * or 0 when unknown.
+	 * Gets the time on which a backup was last performed.
+	 * @return The time on which the last backup finished, according to the ".lastBackup" file lastModified timestamp.
+	 * Returns 0 when unknown.
 	 */
 	private long getPersistentLastBackupDate() {
 		File timeFile = new File(this.backupDir, ".lastBackup");
