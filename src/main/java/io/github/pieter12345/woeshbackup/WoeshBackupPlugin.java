@@ -88,15 +88,14 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			this.startBackupIntervalTask((timeUntilNextBackupSec < 60 ? 60 : timeUntilNextBackupSec));
 		}
 		
-		// Remove existing generated snapshots.
-		/* TODO - Perform on the main thread instead? (Makes free disk space up-to-date and probably isn't slow?).
-		 */
-		new Thread(() -> {
+		// Remove existing generated snapshots if the option is set in the config.
+		boolean removeSnapshotsOnEnable = this.getConfig().getBoolean("removeSnapshotsOnEnable", true);
+		if(removeSnapshotsOnEnable) {
 			int count = WoeshBackupPlugin.this.removeGeneratedSnapshots();
 			if(count > 0) {
 				this.getLogger().info("Removed " + count + " snapshots.");
 			}
-		}).start();
+		}
 		
 		// Print disk space feedback.
 		this.getLogger().info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");

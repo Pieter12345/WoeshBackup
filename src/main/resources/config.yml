@@ -23,6 +23,9 @@ maxBackupAge: 1814400
 # If less than this amount of disk space is available, no backups will start. The value is in MBs.
 dontBackupIfLessThanThisSpaceIsAvailableInMB: 5000
 
+# Enable or disable removal of generated snapshots on plugin enable. Default: true.
+removeSnapshotsOnEnable: true
+
 # Enable or disable debug feedback in console. Default: false.
 debugEnabled: false
 
