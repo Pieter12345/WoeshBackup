@@ -6,7 +6,7 @@ load: postworld
 api-version: 1.13
 commands:
     woeshbackup:
-        description: Displays all WoeshBackup commands.
-        usage: Type "/woeshbackup" for help.
-        permission: woeshbackup.woeshbackup
-        permission-message: You do not have permission to use commands from this plugin (woeshbackup.woeshbackup).
+        description: An incremental backup plugin.
+        usage: Type "/woeshbackup help" for help.
+        permission: woeshbackup.use
+        permission-message: You do not have permission to use this command.

@@ -28,4 +28,3 @@ removeSnapshotsOnEnable: true
 
 # Enable or disable debug feedback in console. Default: false.
 debugEnabled: false
-
