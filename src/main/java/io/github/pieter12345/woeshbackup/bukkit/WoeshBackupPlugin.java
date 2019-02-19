@@ -1,4 +1,4 @@
-package io.github.pieter12345.woeshbackup;
+package io.github.pieter12345.woeshbackup.bukkit;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -25,6 +25,11 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
+import io.github.pieter12345.woeshbackup.Backup;
+import io.github.pieter12345.woeshbackup.BackupException;
+import io.github.pieter12345.woeshbackup.BackupRestoreZipFileWriter;
+import io.github.pieter12345.woeshbackup.SimpleBackup;
+import io.github.pieter12345.woeshbackup.ZipFileBackupPartFactory;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
 /**
