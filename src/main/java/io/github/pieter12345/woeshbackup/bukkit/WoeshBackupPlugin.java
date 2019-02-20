@@ -26,10 +26,10 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import io.github.pieter12345.woeshbackup.Backup;
-import io.github.pieter12345.woeshbackup.BackupException;
 import io.github.pieter12345.woeshbackup.BackupRestoreZipFileWriter;
 import io.github.pieter12345.woeshbackup.SimpleBackup;
 import io.github.pieter12345.woeshbackup.ZipFileBackupPartFactory;
+import io.github.pieter12345.woeshbackup.exceptions.BackupException;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
 /**

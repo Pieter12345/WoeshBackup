@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
+import io.github.pieter12345.woeshbackup.exceptions.BackupException;
+
 /**
  * Represents a backup.
  * @author P.J.S. Kools

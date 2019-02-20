@@ -20,6 +20,7 @@ import java.util.Set;
 import java.util.logging.Logger;
 
 import io.github.pieter12345.woeshbackup.BackupPart.ChangeType;
+import io.github.pieter12345.woeshbackup.exceptions.BackupException;
 import io.github.pieter12345.woeshbackup.exceptions.CorruptedBackupException;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 

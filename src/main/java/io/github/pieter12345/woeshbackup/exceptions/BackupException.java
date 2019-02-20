@@ -1,4 +1,4 @@
-package io.github.pieter12345.woeshbackup;
+package io.github.pieter12345.woeshbackup.exceptions;
 
 /**
  * An Exception that should be thrown as outcome of a failed operation on a backup.
