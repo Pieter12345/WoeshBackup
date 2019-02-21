@@ -90,9 +90,6 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Initialize backups map.
 		this.backups = new HashMap<Backup, File>();
 		
-		// Get last finished backup start time.
-		this.lastBackupStartTime = this.getPersistentLastBackupTime();
-		
 		// Load the config file, creating the default config if it did not exist.
 		this.loadConfig();
 		
@@ -119,7 +116,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Schedule a task to update the backups every backupInterval minutes, at least one minute from now.
 		boolean autoBackup = this.getConfig().getBoolean("autoBackup.enabled", true);
 		if(autoBackup) {
-			int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.lastBackupStartTime) / 1000);
+			int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.getLastBackupTime()) / 1000);
 			int timeUntilNextBackupSec = this.backupIntervalSeconds - timeSinceLastBackupSec;
 			this.startBackupIntervalTask((timeUntilNextBackupSec < 60 ? 60 : timeUntilNextBackupSec));
 		}
@@ -173,7 +170,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	
 	@Override
 	public void startBackupIntervalTask() {
-		int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.lastBackupStartTime) / 1000);
+		int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.getLastBackupTime()) / 1000);
 		int timeUntilNextBackupSec = this.backupIntervalSeconds - timeSinceLastBackupSec;
 		this.startBackupIntervalTask((timeUntilNextBackupSec < 0 ? 0 : timeUntilNextBackupSec));
 	}
@@ -369,6 +366,9 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	
 	@Override
 	public long getLastBackupTime() {
+		if(this.lastBackupStartTime == -1) {
+			this.lastBackupStartTime = this.getPersistentLastBackupTime();
+		}
 		return this.lastBackupStartTime;
 	}
 	
