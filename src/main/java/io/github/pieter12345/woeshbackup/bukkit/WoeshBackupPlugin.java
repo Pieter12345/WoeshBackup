@@ -46,6 +46,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	private Map<Backup, File> backups;
 	private Thread backupThread = null;
 	private BukkitTask backupIntervalTask = null;
+	private long lastBackupStartTime = -1;
 	private int backupIntervalSeconds = -1; // [sec].
 	private long timeToKeepBackups; // [ms].
 	private int minDiskSpaceToAllowBackup; // [MB].
@@ -67,10 +68,14 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		// Initialize backups map.
 		this.backups = new HashMap<Backup, File>();
 		
+		// Get last finished backup start time.
+		this.lastBackupStartTime = this.getPersistentLastBackupTime();
+		
 		// Load the config file, creating the default config if it did not exist.
 		this.loadConfig();
 		
 		// Create a WoeshBackup for all worlds. The delay is there to allow the worlds to load (10 sec delay @ 20tps).
+		this.addBackupsForWorlds();
 		Bukkit.getScheduler().runTaskLater(this, () -> WoeshBackupPlugin.this.addBackupsForWorlds(), 20 * 10);
 		
 		// Create a WoeshBackup for the plugins directory.
@@ -89,11 +94,11 @@ public class WoeshBackupPlugin extends JavaPlugin {
 				new ZipFileBackupPartFactory(new File(this.backupDir, toBackupDir.getName()));
 		this.backups.put(new SimpleBackup(toBackupDir, backupPartFactory, this.getLogger(), ignorePaths), ignoreFile);
 		
-		// Schedule a task to update the backups every backupInterval minutes.
+		// Schedule a task to update the backups every backupInterval minutes, at least one minute from now.
 		boolean autoBackup = this.getConfig().getBoolean("autoBackup.enabled", true);
 		if(autoBackup) {
-			long timeSinceLastBackupMillis = System.currentTimeMillis() - this.getPersistentLastBackupDate();
-			int timeUntilNextBackupSec = this.backupIntervalSeconds - (int) (timeSinceLastBackupMillis / 1000);
+			int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.lastBackupStartTime) / 1000);
+			int timeUntilNextBackupSec = this.backupIntervalSeconds - timeSinceLastBackupSec;
 			this.startBackupIntervalTask((timeUntilNextBackupSec < 60 ? 60 : timeUntilNextBackupSec));
 		}
 		
@@ -128,7 +133,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	private void startBackupIntervalTask(int initialDelaySeconds) {
 		
 		// Return if the backup task is active already.
-		if(this.backupIntervalTask != null) {
+		if(this.backupIntervalTask != null && !this.backupIntervalTask.isCancelled()) {
 			return;
 		}
 		
@@ -145,12 +150,45 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * Creates a new backup for all {@link Backup} objects. Does nothing if a backup is already in progress.
+	 * Schedules the recurring backup task that will first execute when the backup interval time has passed
+	 * since the last backup has started. Does nothing if the backup task is already running.
+	 */
+	private void startBackupIntervalTask() {
+		int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.lastBackupStartTime) / 1000);
+		int timeUntilNextBackupSec = this.backupIntervalSeconds - timeSinceLastBackupSec;
+		this.startBackupIntervalTask((timeUntilNextBackupSec < 0 ? 0 : timeUntilNextBackupSec));
+	}
+	
+	/**
+	 * Stops the recurring backup task. Does nothing if no backup task is running.
+	 */
+	private void stopBackupIntervalTask() {
+		
+		// Return if the backup task is not active.
+		if(this.backupIntervalTask == null) {
+			return;
+		}
+		
+		// Stop the backup task.
+		this.backupIntervalTask.cancel();
+		this.backupIntervalTask = null;
+	}
+	
+	/**
+	 * Checks whether the recurring backup task is active or not.
+	 * @return {@code true} if the recurring backup task is active, {@code false} otherwise.
+	 */
+	private boolean backupIntervalTaskActive() {
+		return this.backupIntervalTask != null;
+	}
+	
+	/**
+	 * Updates all {@link Backup}s. Does nothing if a backup is already in progress.
 	 */
 	private void performBackup() {
 		
 		// Return if backups are still/already in progress.
-		if(this.isBackupInProgress()) {
+		if(this.backupInProgress()) {
 			WoeshBackupPlugin.this.getLogger().warning("Skipping backup because a backup is already in progress.");
 			return;
 		}
@@ -176,17 +214,21 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		// Give feedback about starting the backup.
 		Bukkit.broadcastMessage("[WoeshBackup] Starting backups.");
 		
+		// Set the last backup start time.
+		final long currentTime = System.currentTimeMillis();
+		this.setLastBackupTime(currentTime);
+		
 		// Add a WoeshBackup for all worlds that are loaded but do not have one yet.
 		this.addBackupsForWorlds();
 		
 		// Update all backups on a separate thread.
-		final long currentTime = System.currentTimeMillis();
 		final long mergeBeforeDate = currentTime - this.timeToKeepBackups;
-		
 		this.backupThread = new Thread() {
 			@Override
 			public void run() {
 				final long fullBackupStartTime = currentTime;
+				
+				// Update all backups.
 				for(final Backup backup : WoeshBackupPlugin.this.backups.keySet()) {
 					
 					// Return if the thread has been interrupted (cancelled / server shutting down).
@@ -276,9 +318,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					
 				}
 				
-				// Write the last backup date to file.
+				// Write the last backup start time to file.
 				try {
-					WoeshBackupPlugin.this.setPersistentLastBackupDate(System.currentTimeMillis());
+					WoeshBackupPlugin.this.storeLastBackupTime();
 				} catch (IOException e) {
 					WoeshBackupPlugin.this.getLogger().severe(
 							"An IOException occured while storing the last backup date.");
@@ -383,20 +425,9 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			this.backupIntervalSeconds = backupIntervalSeconds;
 			
 			// Cancel and restart the current task if it exists.
-			if(this.backupIntervalTask != null) {
-				this.backupIntervalTask.cancel();
-				this.backupIntervalTask = null;
-				int timeUntilNextBackupSeconds;
-				if(this.isBackupInProgress()) {
-					timeUntilNextBackupSeconds = this.backupIntervalSeconds;
-				} else {
-					long timeSinceLastBackupMillis = System.currentTimeMillis() - this.getPersistentLastBackupDate();
-					timeUntilNextBackupSeconds = this.backupIntervalSeconds - (int) (timeSinceLastBackupMillis / 1000);
-					if(timeUntilNextBackupSeconds < 0) {
-						timeUntilNextBackupSeconds = 0;
-					}
-				}
-				this.startBackupIntervalTask(timeUntilNextBackupSeconds);
+			if(this.backupIntervalTaskActive()) {
+				this.stopBackupIntervalTask();
+				this.startBackupIntervalTask();
 			}
 		}
 		
@@ -407,10 +438,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * isBackupInProgress method.
-	 * @return True if a backup is in progress, false otherwise.
+	 * Checks if a backup is currently in progress.
+	 * @return {@code true} if a backup is in progress, {@code false} otherwise.
 	 */
-	private boolean isBackupInProgress() {
+	private boolean backupInProgress() {
 		return this.backupThread != null && this.backupThread.isAlive();
 	}
 	
@@ -558,16 +589,15 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					}
 					
 					// Return if a backup is running already.
-					if(this.isBackupInProgress()) {
+					if(this.backupInProgress()) {
 						sender.sendMessage(PREFIX_ERROR + "You cannot start a new backup while a backup is running.");
 						return true;
 					}
 					
 					// Cancel the current task if it exists.
-					boolean taskExists = this.backupIntervalTask != null;
+					boolean taskExists = this.backupIntervalTaskActive();
 					if(taskExists) {
-						this.backupIntervalTask.cancel();
-						this.backupIntervalTask = null;
+						this.stopBackupIntervalTask();
 					}
 					
 					// Perform the backup.
@@ -575,7 +605,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					
 					// Re-enable the task if it existed.
 					if(taskExists) {
-						this.startBackupIntervalTask(this.backupIntervalSeconds);
+						this.startBackupIntervalTask();
 					}
 					
 					// Print feedback.
@@ -598,7 +628,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					}
 					
 					// Give feedback about if a backup is in progress.
-					sender.sendMessage(PREFIX_INFO + (this.isBackupInProgress()
+					sender.sendMessage(PREFIX_INFO + (this.backupInProgress()
 							? "There is a backup in progress."
 							: "There is no backup in progress."));
 				} else {
@@ -618,16 +648,12 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					}
 					
 					// Check if there is a task running already.
-					boolean taskExists = this.backupIntervalTask != null;
-					if(taskExists) {
+					if(this.backupIntervalTaskActive()) {
 						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already enabled.");
 					} else {
-						long timeSinceLastBackupMs = System.currentTimeMillis() - this.getPersistentLastBackupDate();
-						int timeUntilNextBackupSec =
-								this.backupIntervalSeconds - (int) timeSinceLastBackupMs / 1000;
 						sender.sendMessage(PREFIX_INFO + String.format("WoeshBackup will now backup every %d minutes.",
 								this.backupIntervalSeconds / 60));
-						this.startBackupIntervalTask((timeUntilNextBackupSec < 0 ? 0 : timeUntilNextBackupSec));
+						this.startBackupIntervalTask();
 					}
 				} else {
 					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
@@ -646,12 +672,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 					}
 					
 					// Check if there is a task running already.
-					boolean taskExists = this.backupIntervalTask != null;
-					if(!taskExists) {
+					if(!this.backupIntervalTaskActive()) {
 						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already disabled.");
 					} else {
-						this.backupIntervalTask.cancel();
-						this.backupIntervalTask = null;
+						this.stopBackupIntervalTask();
 						sender.sendMessage(PREFIX_INFO + "WoeshBackup stopped.");
 					}
 				} else {
@@ -989,26 +1013,43 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	/**
-	 * Sets the time on which a backup was last performed.
-	 * @param time - The time on which the last backup finished.
+	 * Sets the time on which the last backup started.
+	 * @param time - The time on which the last backup started.
+	 */
+	private void setLastBackupTime(long time) {
+		this.lastBackupStartTime = time;
+	}
+	
+	/**
+	 * Gets the time on which the last backup started.
+	 * @return The time on which the last backup started.
+	 * Returns 0 when unknown (no backups were started since enabling and no persistent last backup time was available).
+	 */
+	private long getLastBackupTime() {
+		return this.lastBackupStartTime;
+	}
+	
+	/**
+	 * Stores the time on which the last backup started as the lastModified timestamp in the persistent
+	 * ".lastBackup" file.
 	 * @throws IOException - When the time could not be set in the ".lastBackup" file as lastModified time.
 	 */
-	private void setPersistentLastBackupDate(long time) throws IOException {
+	private void storeLastBackupTime() throws IOException {
 		File timeFile = new File(this.backupDir, ".lastBackup");
 		if(!timeFile.exists()) {
 			timeFile.createNewFile();
 		}
-		if(!timeFile.setLastModified(System.currentTimeMillis())) {
+		if(!timeFile.setLastModified(this.lastBackupStartTime)) {
 			throw new IOException("Unable to set last modified time for file: " + timeFile.getAbsolutePath());
 		}
 	}
 	
 	/**
-	 * Gets the time on which a backup was last performed.
-	 * @return The time on which the last backup finished, according to the ".lastBackup" file lastModified timestamp.
-	 * Returns 0 when unknown.
+	 * Gets the time on which a backup was last performed from the persistent ".lastBackup" file.
+	 * @return The time on which the last backup that has finished started, according to the ".lastBackup" file
+	 * lastModified timestamp. Returns 0 when no persistent last backup time was available.
 	 */
-	private long getPersistentLastBackupDate() {
+	private long getPersistentLastBackupTime() {
 		File timeFile = new File(this.backupDir, ".lastBackup");
 		return timeFile.lastModified();
 	}
