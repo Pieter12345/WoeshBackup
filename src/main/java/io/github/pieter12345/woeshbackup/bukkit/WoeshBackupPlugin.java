@@ -224,7 +224,9 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		}
 		
 		// Give feedback about starting the backup.
-		Bukkit.broadcastMessage("[WoeshBackup] Starting backups.");
+		String prefix = ChatColor.GOLD + "[" + ChatColor.DARK_AQUA
+				+ "WoeshBackup" + ChatColor.GOLD + "]" + ChatColor.GREEN + " ";
+		Bukkit.broadcastMessage(prefix + "Starting backups.");
 		
 		// Set the last backup start time.
 		final long currentTime = System.currentTimeMillis();

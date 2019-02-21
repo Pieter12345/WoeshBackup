@@ -95,8 +95,8 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				} else if(args.length == 2) {
 					switch(args[1].toLowerCase()) {
 						case "help":
-							sender.sendMessage(PREFIX_INFO
-									+ colorize("&6/woeshbackup help &8-&3 Displays command help."));
+							sender.sendMessage(PREFIX_INFO + colorize(
+									"&6/woeshbackup help &8-&3 Displays command help."));
 							return true;
 						case "status":
 							sender.sendMessage(PREFIX_INFO + colorize(
