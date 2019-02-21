@@ -13,9 +13,13 @@ import java.util.Set;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
+import java.util.logging.Level;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -27,6 +31,7 @@ import io.github.pieter12345.woeshbackup.SimpleBackup;
 import io.github.pieter12345.woeshbackup.ZipFileBackupPartFactory;
 import io.github.pieter12345.woeshbackup.api.WoeshBackupAPI;
 import io.github.pieter12345.woeshbackup.exceptions.BackupException;
+import io.github.pieter12345.woeshbackup.utils.AnsiColor;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
 /**
@@ -49,10 +54,34 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	private int minDiskSpaceToAllowBackup; // [MB].
 	public boolean debugEnabled;
 
-	private final WoeshBackupCommandExecutor commandExecutor = new WoeshBackupCommandExecutor(this);
-	private final WoeshBackupTabCompleter tabCompleter = new WoeshBackupTabCompleter(this);
+	private final WoeshBackupCommandExecutor commandExecutor;
+	private final WoeshBackupTabCompleter tabCompleter;
+	private final Logger logger;
 	
 	public WoeshBackupPlugin() {
+		// This runs when Bukkit creates WoeshBackup. Use onEnable() for initialization on enable instead.
+		
+		// Create a logger that adds the plugin name as a colorized name tag and converts Minecraft colorcodes to ANSI.
+		this.logger = new Logger(WoeshBackupPlugin.class.getCanonicalName(), null) {
+			private final String prefix = WoeshBackupPlugin.this.getDescription().getPrefix();
+			private final String pluginName = ChatColor.GOLD + "[" + ChatColor.DARK_AQUA
+					+ (this.prefix != null ? this.prefix : WoeshBackupPlugin.this.getDescription().getName())
+					+ ChatColor.GOLD + "] ";
+			
+			@Override
+			public void log(LogRecord logRecord) {
+				logRecord.setMessage(AnsiColor.colorize(this.pluginName
+						+ (logRecord.getLevel().equals(Level.SEVERE) ? ChatColor.RED : ChatColor.GREEN)
+						+ logRecord.getMessage() + ChatColor.RESET, ChatColor.COLOR_CHAR));
+				super.log(logRecord);
+			}
+		};
+		this.logger.setParent(this.getServer().getLogger());
+		this.logger.setLevel(Level.ALL);
+		
+		// Create the command executor and tab completer.
+		this.commandExecutor = new WoeshBackupCommandExecutor(this);
+		this.tabCompleter = new WoeshBackupTabCompleter(this, this.logger);
 	}
 	
 	@Override
@@ -79,13 +108,13 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 			ignorePaths = readIgnorePaths(ignoreFile);
 		} catch (IOException e) {
 			ignorePaths = new ArrayList<String>();
-			this.getLogger().severe(
+			this.logger.severe(
 					"IOException while reading plugins ignore file. No files will be ignored during the next backup.");
 		}
 		File toBackupDir = new File("plugins");
 		ZipFileBackupPartFactory backupPartFactory =
 				new ZipFileBackupPartFactory(new File(this.backupDir, toBackupDir.getName()));
-		this.backups.put(new SimpleBackup(toBackupDir, backupPartFactory, this.getLogger(), ignorePaths), ignoreFile);
+		this.backups.put(new SimpleBackup(toBackupDir, backupPartFactory, this.logger, ignorePaths), ignoreFile);
 		
 		// Schedule a task to update the backups every backupInterval minutes, at least one minute from now.
 		boolean autoBackup = this.getConfig().getBoolean("autoBackup.enabled", true);
@@ -100,12 +129,12 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		if(removeSnapshotsOnEnable) {
 			int count = WoeshBackupPlugin.this.removeGeneratedSnapshots();
 			if(count > 0) {
-				this.getLogger().info("Removed " + count + " snapshots.");
+				this.logger.info("Removed " + count + " snapshots.");
 			}
 		}
 		
 		// Print disk space feedback.
-		this.getLogger().info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");
+		this.logger.info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");
 	}
 	
 	@Override
@@ -172,14 +201,14 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		
 		// Return if backups are still/already in progress.
 		if(this.backupInProgress()) {
-			WoeshBackupPlugin.this.getLogger().warning("Skipping backup because a backup is already in progress.");
+			WoeshBackupPlugin.this.logger.warning("Skipping backup because a backup is already in progress.");
 			return;
 		}
 		
 		// Create the backup directory if it does not exist.
 		if(!this.backupDir.isDirectory()) {
 			if(!this.backupDir.mkdir()) {
-				WoeshBackupPlugin.this.getLogger().severe("Failed to create the main backup directory at: "
+				WoeshBackupPlugin.this.logger.severe("Failed to create the main backup directory at: "
 						+ this.backupDir.getAbsolutePath() + ". Skipping backup.");
 				return;
 			}
@@ -188,7 +217,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Abort backup if there is less than some minimum amount free disk space.
 		long availableDiskSpace = this.backupDir.getUsableSpace();
 		if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
-			WoeshBackupPlugin.this.getLogger().severe("Skipping backups since less than "
+			WoeshBackupPlugin.this.logger.severe("Skipping backups since less than "
 					+ this.minDiskSpaceToAllowBackup + "MB of free disk space was found("
 					+ (availableDiskSpace / 1000000) + "MB).");
 			return;
@@ -220,7 +249,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 					}
 					
 					// Give feedback about starting the backup and store the start time.
-					WoeshBackupPlugin.this.getLogger().info(
+					WoeshBackupPlugin.this.logger.info(
 							"Starting backup: " + backup.getToBackupDir().getName() + ".");
 					final long singleBackupStartTime = System.currentTimeMillis();
 					
@@ -258,7 +287,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 						try {
 							backup.merge(mergeBeforeDate);
 						} catch (BackupException e) {
-							WoeshBackupPlugin.this.getLogger().severe("Merging backups failed for backup: "
+							WoeshBackupPlugin.this.logger.severe("Merging backups failed for backup: "
 									+ backup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
 									+ Utils.getStacktrace(e));
 						}
@@ -277,7 +306,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 							Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> world.setAutoSave(true));
 						}
 					} catch (InterruptedException e) {
-						WoeshBackupPlugin.this.getLogger().warning("Backup was interrupted during execution: "
+						WoeshBackupPlugin.this.logger.warning("Backup was interrupted during execution: "
 								+ backup.getToBackupDir().getName());
 						return;
 					}
@@ -287,10 +316,10 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 						float timeElapsed = (float) ((System.currentTimeMillis() - singleBackupStartTime) / 1000);
 						String timeElapsedStr = String.format("%.0f sec", timeElapsed);
 						if(ex == null) {
-							WoeshBackupPlugin.this.getLogger().info("Finished backup: "
+							WoeshBackupPlugin.this.logger.info("Finished backup: "
 									+ backup.getToBackupDir().getName() + " (" + timeElapsedStr + ").");
 						} else {
-							WoeshBackupPlugin.this.getLogger().severe("Finished backup with errors: "
+							WoeshBackupPlugin.this.logger.severe("Finished backup with errors: "
 									+ backup.getToBackupDir().getName() + " (" + timeElapsedStr + ").\n"
 									+ (WoeshBackupPlugin.this.debugEnabled
 											? "Here's the stacktrace:\n" + Utils.getStacktrace(ex)
@@ -306,13 +335,13 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 				try {
 					WoeshBackupPlugin.this.storeLastBackupTime();
 				} catch (IOException e) {
-					WoeshBackupPlugin.this.getLogger().severe(
+					WoeshBackupPlugin.this.logger.severe(
 							"An IOException occured while storing the last backup date.");
 				}
 				
 				// Send feedback since the backups are done.
 				final float timeElapsed = (float) ((System.currentTimeMillis() - fullBackupStartTime) / 1000);
-				WoeshBackupPlugin.this.getLogger().info(String.format("Backups finished in %.0f sec.", timeElapsed));
+				WoeshBackupPlugin.this.logger.info(String.format("Backups finished in %.0f sec.", timeElapsed));
 				
 				// Allow a new backup to start.
 				Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> WoeshBackupPlugin.this.backupThread = null);
@@ -395,7 +424,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 				boolean snapDirEmpty = true;
 				for(File file : snapDirFiles) {
 					if(file.isFile() && snapshotPattern.matcher(file.getName()).matches()) {
-						this.getLogger().info("Removing snapshot: " + snapDir.getName() + "/" + file.getName());
+						this.logger.info("Removing snapshot: " + snapDir.getName() + "/" + file.getName());
 						success = success && file.delete();
 						count++;
 					} else {
@@ -424,19 +453,19 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		String snapshotsDirPath = this.getConfig().getString("snapshotsDirPath", "snapshots");
 		int backupIntervalSeconds = this.getConfig().getInt("autobackup.interval", 3600);
 		if(backupIntervalSeconds <= 60) {
-			this.getLogger().warning("Invalid config entry found: autobackup.interval has to be >= 60 [sec]. Found: "
+			this.logger.warning("Invalid config entry found: autobackup.interval has to be >= 60 [sec]. Found: "
 					+ backupIntervalSeconds + ". Using default value: 3600 [sec].");
 			backupIntervalSeconds = 3600;
 		}
 		this.timeToKeepBackups = 1000 * this.getConfig().getInt("maxBackupAge", 1814400);
 		if(this.timeToKeepBackups <= 1000 * 3600) {
-			this.getLogger().warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
+			this.logger.warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
 					+ (this.timeToKeepBackups / 1000) + ". Using default value: 1814400 [sec] (21 days).");
 			this.timeToKeepBackups = 1000 * 1814400;
 		}
 		this.minDiskSpaceToAllowBackup = this.getConfig().getInt("dontBackupIfLessThanThisSpaceIsAvailableInMB", 5000);
 		if(this.minDiskSpaceToAllowBackup < 1000) {
-			this.getLogger().warning(
+			this.logger.warning(
 					"Invalid config entry found: dontBackupIfLessThanThisSpaceIsAvailableInMB has to be >= 1000 [MB]."
 					+ " Found: " + this.minDiskSpaceToAllowBackup + ". Using default value: 5000 [MB].");
 			this.minDiskSpaceToAllowBackup = 5000;
@@ -465,7 +494,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 				try {
 					backupEntry.getKey().setIgnorePaths(readIgnorePaths(backupEntry.getValue()));
 				} catch (IOException e) {
-					this.getLogger().severe("IOException while reading ignore file for backup: "
+					this.logger.severe("IOException while reading ignore file for backup: "
 							+ backupEntry.getKey().getToBackupDir().getName() + ". Ignore file is not reloaded.");
 				}
 			}
@@ -483,7 +512,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		}
 		
 		// Give feedback about the backup interval.
-		this.getLogger().info(String.format(
+		this.logger.info(String.format(
 				"WoeshBackup will now backup every %d minutes.", (this.backupIntervalSeconds / 60)));
 	}
 	
@@ -526,7 +555,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 			}
 			ZipFileBackupPartFactory backupPartFactory =
 					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()));
-			this.backups.put(new SimpleBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
+			this.backups.put(new SimpleBackup(toBackupWorldDir, backupPartFactory, this.logger), null);
 		}
 	}
 	

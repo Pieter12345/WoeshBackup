@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -23,15 +24,18 @@ import io.github.pieter12345.woeshbackup.utils.Utils;
 public class WoeshBackupTabCompleter implements TabCompleter {
 	
 	private final WoeshBackupPlugin plugin;
+	private final Logger logger;
 	
 	private static final DateFormat RESTORE_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
 	
 	/**
 	 * Creates a new {@link CommandExecutor} for WoeshBackup commands.
 	 * @param plugin - The {@link WoeshBackupPlugin}.
+	 * @param logger - The logger used for error logging.
 	 */
-	public WoeshBackupTabCompleter(WoeshBackupPlugin plugin) {
+	public WoeshBackupTabCompleter(WoeshBackupPlugin plugin, Logger logger) {
 		this.plugin = plugin;
+		this.logger = logger;
 	}
 	
 	@Override
@@ -84,7 +88,7 @@ public class WoeshBackupTabCompleter implements TabCompleter {
 								}
 							}
 						} catch (IOException e) {
-							this.plugin.getLogger().warning("An exception occurred while tabcompleting"
+							this.logger.warning("An exception occurred while tabcompleting"
 									+ " backup part dates. Here's the stacktrace: " + Utils.getStacktrace(e));
 						}
 					}
