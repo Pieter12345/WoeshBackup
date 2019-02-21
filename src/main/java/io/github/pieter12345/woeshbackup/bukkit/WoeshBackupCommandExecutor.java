@@ -75,7 +75,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							+ "\n&6  - /woeshbackup help [subcommand]"
 							+ "\n&3    Displays this page or information about the subcommand."
 							+ "\n&6  - /woeshbackup status"
-							+ "\n&3    Displays the backup task status."
+							+ "\n&3    Displays the backup status."
 							+ "\n&6  - /woeshbackup now"
 							+ "\n&3    Creates a new backup."
 							+ "\n&6  - /woeshbackup on"
@@ -100,7 +100,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							return true;
 						case "status":
 							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup status &8-&3 Displays the backup task status."));
+									"&6/woeshbackup status &8-&3 Displays the backup status."));
 							return true;
 						case "now":
 							sender.sendMessage(PREFIX_INFO + colorize(
@@ -195,10 +195,24 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 						return true;
 					}
 					
-					// Give feedback about if a backup is in progress.
-					sender.sendMessage(PREFIX_INFO + (this.api.backupInProgress()
-							? "There is a backup in progress."
-							: "There is no backup in progress."));
+					// Send the status feedback.
+					long lastBackupTime = this.api.getLastBackupTime();
+					sender.sendMessage(new String[] {
+							PREFIX_INFO + "Backup in progress: " + ChatColor.LIGHT_PURPLE
+									+ (this.api.backupInProgress() ? "Yes" : "No") + ChatColor.GREEN + ".",
+							PREFIX_INFO + "Last backup started: " + ChatColor.LIGHT_PURPLE + (lastBackupTime <= 0
+									? "Never" : ((System.currentTimeMillis() - lastBackupTime) / 60000) + "m ago")
+									+ ChatColor.GREEN + ".",
+							PREFIX_INFO + "Auto backup: " + ChatColor.LIGHT_PURPLE
+									+ (this.api.backupIntervalTaskActive()
+											? (this.api.getBackupInterval() / 60) + "m interval" : "Disabled")
+									+ ChatColor.GREEN + ".",
+							PREFIX_INFO + "Backups loaded: " + Utils.glueIterable(this.api.getBackups(),
+									(Backup b) -> ChatColor.LIGHT_PURPLE + b.getToBackupDir().getName()
+											+ ChatColor.GREEN, ", ") + ".",
+							PREFIX_INFO + "Debug enabled: " + ChatColor.LIGHT_PURPLE
+									+ (this.api.debugEnabled() ? "Yes" : "No") + ChatColor.GREEN + "."
+					});
 				} else {
 					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
 				}
