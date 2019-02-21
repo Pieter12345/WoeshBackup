@@ -15,6 +15,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 
 import io.github.pieter12345.woeshbackup.Backup;
+import io.github.pieter12345.woeshbackup.api.WoeshBackupAPI;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
 /**
@@ -23,18 +24,18 @@ import io.github.pieter12345.woeshbackup.utils.Utils;
  */
 public class WoeshBackupTabCompleter implements TabCompleter {
 	
-	private final WoeshBackupPlugin plugin;
+	private final WoeshBackupAPI api;
 	private final Logger logger;
 	
 	private static final DateFormat RESTORE_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
 	
 	/**
 	 * Creates a new {@link CommandExecutor} for WoeshBackup commands.
-	 * @param plugin - The {@link WoeshBackupPlugin}.
+	 * @param api - The {@link WoeshBackupAPI}.
 	 * @param logger - The logger used for error logging.
 	 */
-	public WoeshBackupTabCompleter(WoeshBackupPlugin plugin, Logger logger) {
-		this.plugin = plugin;
+	public WoeshBackupTabCompleter(WoeshBackupAPI api, Logger logger) {
+		this.api = api;
 		this.logger = logger;
 	}
 	
@@ -69,7 +70,7 @@ public class WoeshBackupTabCompleter implements TabCompleter {
 			
 			if(args.length == 2) {
 				List<String> ret = new ArrayList<String>();
-				for(Backup backup : this.plugin.getBackups()) {
+				for(Backup backup : this.api.getBackups()) {
 					if(backup.getToBackupDir().getName().toLowerCase().startsWith(args[1].toLowerCase())) {
 						ret.add(backup.getToBackupDir().getName());
 					}
@@ -78,7 +79,7 @@ public class WoeshBackupTabCompleter implements TabCompleter {
 			}
 			if(args.length == 3) {
 				List<String> ret = new ArrayList<String>();
-				for(Backup backup : this.plugin.getBackups()) {
+				for(Backup backup : this.api.getBackups()) {
 					if(backup.getToBackupDir().getName().equalsIgnoreCase(args[1])) {
 						try {
 							for(Long restoreDateThresh : backup.getRestoreDateThresholds()) {

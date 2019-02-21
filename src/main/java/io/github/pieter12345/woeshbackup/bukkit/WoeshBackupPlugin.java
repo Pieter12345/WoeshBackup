@@ -80,7 +80,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		this.logger.setLevel(Level.ALL);
 		
 		// Create the command executor and tab completer.
-		this.commandExecutor = new WoeshBackupCommandExecutor(this);
+		this.commandExecutor = new WoeshBackupCommandExecutor(this, this, this.logger);
 		this.tabCompleter = new WoeshBackupTabCompleter(this, this.logger);
 	}
 	

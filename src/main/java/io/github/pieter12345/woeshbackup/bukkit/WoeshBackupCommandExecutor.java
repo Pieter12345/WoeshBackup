@@ -4,15 +4,18 @@ import java.io.File;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.logging.Logger;
 
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
+import org.bukkit.plugin.Plugin;
 
 import io.github.pieter12345.woeshbackup.Backup;
 import io.github.pieter12345.woeshbackup.BackupRestoreZipFileWriter;
+import io.github.pieter12345.woeshbackup.api.WoeshBackupAPI;
 import io.github.pieter12345.woeshbackup.exceptions.BackupException;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
@@ -21,8 +24,10 @@ import io.github.pieter12345.woeshbackup.utils.Utils;
  * @author P.J.S. Kools
  */
 public class WoeshBackupCommandExecutor implements CommandExecutor {
-	
-	private final WoeshBackupPlugin plugin;
+
+	private final WoeshBackupAPI api;
+	private final Plugin plugin;
+	private final Logger logger;
 
 	private static final String PREFIX_RAW =
 			ChatColor.GOLD + "[" + ChatColor.DARK_AQUA + "WoeshBackup" + ChatColor.GOLD + "]";
@@ -32,10 +37,14 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 	
 	/**
 	 * Creates a new {@link CommandExecutor} for WoeshBackup commands.
-	 * @param plugin - The {@link WoeshBackupPlugin}.
+	 * @param api - The {@link WoeshBackupAPI}.
+	 * @param plugin - The {@link Plugin} using this {@link CommandExecutor}.
+	 * @param logger - The logger used for error logging.
 	 */
-	public WoeshBackupCommandExecutor(WoeshBackupPlugin plugin) {
+	public WoeshBackupCommandExecutor(WoeshBackupAPI api, Plugin plugin, Logger logger) {
+		this.api = api;
 		this.plugin = plugin;
+		this.logger = logger;
 	}
 	
 	@Override
@@ -148,23 +157,23 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Return if a backup is running already.
-					if(this.plugin.backupInProgress()) {
+					if(this.api.backupInProgress()) {
 						sender.sendMessage(PREFIX_ERROR + "You cannot start a new backup while a backup is running.");
 						return true;
 					}
 					
 					// Cancel the current task if it exists.
-					boolean taskExists = this.plugin.backupIntervalTaskActive();
+					boolean taskExists = this.api.backupIntervalTaskActive();
 					if(taskExists) {
-						this.plugin.stopBackupIntervalTask();
+						this.api.stopBackupIntervalTask();
 					}
 					
 					// Perform the backup.
-					this.plugin.performBackup();
+					this.api.performBackup();
 					
 					// Re-enable the task if it existed.
 					if(taskExists) {
-						this.plugin.startBackupIntervalTask();
+						this.api.startBackupIntervalTask();
 					}
 					
 					// Print feedback.
@@ -187,7 +196,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Give feedback about if a backup is in progress.
-					sender.sendMessage(PREFIX_INFO + (this.plugin.backupInProgress()
+					sender.sendMessage(PREFIX_INFO + (this.api.backupInProgress()
 							? "There is a backup in progress."
 							: "There is no backup in progress."));
 				} else {
@@ -207,12 +216,12 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Check if there is a task running already.
-					if(this.plugin.backupIntervalTaskActive()) {
+					if(this.api.backupIntervalTaskActive()) {
 						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already enabled.");
 					} else {
 						sender.sendMessage(PREFIX_INFO + String.format("WoeshBackup will now backup every %d minutes.",
-								this.plugin.getBackupInterval() / 60));
-						this.plugin.startBackupIntervalTask();
+								this.api.getBackupInterval() / 60));
+						this.api.startBackupIntervalTask();
 					}
 				} else {
 					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
@@ -231,10 +240,10 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Check if there is a task running already.
-					if(!this.plugin.backupIntervalTaskActive()) {
+					if(!this.api.backupIntervalTaskActive()) {
 						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already disabled.");
 					} else {
-						this.plugin.stopBackupIntervalTask();
+						this.api.stopBackupIntervalTask();
 						sender.sendMessage(PREFIX_INFO + "WoeshBackup stopped.");
 					}
 				} else {
@@ -254,7 +263,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Get the root directory and list its properties.
-					File file = this.plugin.getBackupDir();
+					File file = this.api.getBackupDir();
 					while(file.getParentFile() != null) {
 						file = file.getParentFile();
 					}
@@ -311,7 +320,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				// Check if the given backup exists.
 				String backupName = args[1];
 				Backup backup = null;
-				for(Backup b : this.plugin.getBackups()) {
+				for(Backup b : this.api.getBackups()) {
 					if(b.getToBackupDir().getName().equalsIgnoreCase(backupName)) {
 						backup = b;
 						break;
@@ -323,11 +332,11 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				}
 				
 				// Check if there is at least 2GB of free disk space. Don't restore otherwise.
-				long availableDiskSpace = (this.plugin.getSnapshotsDir().isDirectory()
-						? this.plugin.getSnapshotsDir() : this.plugin.getBackupDir()).getUsableSpace();
-				if(availableDiskSpace < this.plugin.getMinRequiredDiskSpace() * 1000000L) {
+				long availableDiskSpace = (this.api.getSnapshotsDir().isDirectory()
+						? this.api.getSnapshotsDir() : this.api.getBackupDir()).getUsableSpace();
+				if(availableDiskSpace < this.api.getMinRequiredDiskSpace() * 1000000L) {
 					sender.sendMessage(PREFIX_ERROR + "Cannot generate snapshots because less than "
-							+ this.plugin.getMinRequiredDiskSpace() + "MB of free disk space was found("
+							+ this.api.getMinRequiredDiskSpace() + "MB of free disk space was found("
 							+ (availableDiskSpace / 1000000) + "MB).");
 					return true;
 				}
@@ -342,14 +351,14 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				new Thread(() -> {
 					
 					// Create the snapshots directory if it does not yet exist.
-					if(!WoeshBackupCommandExecutor.this.plugin.getSnapshotsDir().exists()) {
-						WoeshBackupCommandExecutor.this.plugin.getSnapshotsDir().mkdirs();
+					if(!WoeshBackupCommandExecutor.this.api.getSnapshotsDir().exists()) {
+						WoeshBackupCommandExecutor.this.api.getSnapshotsDir().mkdirs();
 					}
 					
 					// Generate a snapshot from the backup.
 					BackupException ex = null;
 					try {
-						File restoreToDir = new File(WoeshBackupCommandExecutor.this.plugin.getSnapshotsDir(),
+						File restoreToDir = new File(WoeshBackupCommandExecutor.this.api.getSnapshotsDir(),
 								finalBackup.getToBackupDir().getName());
 						finalBackup.restore(finalBeforeDate, (restoreFileDate) ->
 								new BackupRestoreZipFileWriter(restoreToDir, restoreFileDate));
@@ -369,8 +378,8 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 								sender.sendMessage(PREFIX_INFO + "Succesfully generated snapshot for backup: "
 										+ finalBackup.getToBackupDir().getName());
 							} else {
-								if(this.plugin.debugEnabled) {
-									WoeshBackupCommandExecutor.this.plugin.getLogger().severe("An Exception occurred "
+								if(this.api.debugEnabled()) {
+									WoeshBackupCommandExecutor.this.logger.severe("An Exception occurred "
 											+ "while generating a snapshot for backup: "
 											+ finalBackup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
 											+ Utils.getStacktrace(finalEx));
@@ -409,7 +418,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 						return true;
 					}
 					
-					int amount = this.plugin.removeGeneratedSnapshots();
+					int amount = this.api.removeGeneratedSnapshots();
 					sender.sendMessage(amount >= 0 ? "Successfully removed " + amount + " snapshots."
 							: "An error occured while removing one or multiple snapshots.");
 				} else {
@@ -427,9 +436,8 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 						sender.sendMessage(NO_PERMS_MSG);
 						return true;
 					}
-					
-					this.plugin.debugEnabled = !this.plugin.debugEnabled;
-					sender.sendMessage("Debug " + (this.plugin.debugEnabled ? "enabled" : "disabled") + ".");
+					this.api.setDebugEnabled(!this.api.debugEnabled());
+					sender.sendMessage("Debug " + (this.api.debugEnabled() ? "enabled" : "disabled") + ".");
 				} else {
 					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
 				}
@@ -446,7 +454,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 						return true;
 					}
 					
-					this.plugin.loadConfig();
+					this.api.loadConfig();
 					sender.sendMessage("Config reloaded.");
 				} else {
 					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
