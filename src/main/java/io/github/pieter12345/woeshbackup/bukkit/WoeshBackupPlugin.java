@@ -4,21 +4,18 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.text.DateFormat;
-import java.text.ParseException;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
@@ -26,9 +23,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import io.github.pieter12345.woeshbackup.Backup;
-import io.github.pieter12345.woeshbackup.BackupRestoreZipFileWriter;
 import io.github.pieter12345.woeshbackup.SimpleBackup;
 import io.github.pieter12345.woeshbackup.ZipFileBackupPartFactory;
+import io.github.pieter12345.woeshbackup.api.WoeshBackupAPI;
 import io.github.pieter12345.woeshbackup.exceptions.BackupException;
 import io.github.pieter12345.woeshbackup.utils.Utils;
 
@@ -38,7 +35,7 @@ import io.github.pieter12345.woeshbackup.utils.Utils;
  * @author P.J.S. Kools
  * @since 10-04-2016
  */
-public class WoeshBackupPlugin extends JavaPlugin {
+public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	
 	// Variables & Constants.
 	private File backupDir = null;
@@ -46,18 +43,14 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	private Map<Backup, File> backups;
 	private Thread backupThread = null;
 	private BukkitTask backupIntervalTask = null;
-	private long lastBackupStartTime = -1;
+	private long lastBackupStartTime = -1; // [ms].
 	private int backupIntervalSeconds = -1; // [sec].
 	private long timeToKeepBackups; // [ms].
 	private int minDiskSpaceToAllowBackup; // [MB].
-	public static boolean debugEnabled;
+	public boolean debugEnabled;
 
-	private static final String PREFIX_INFO =
-			ChatColor.GOLD + "[" + ChatColor.DARK_AQUA + "WoeshBackup" + ChatColor.GOLD + "]" + ChatColor.GREEN + " ";
-	private static final String PREFIX_ERROR =
-			ChatColor.GOLD + "[" + ChatColor.DARK_AQUA + "WoeshBackup" + ChatColor.GOLD + "]" + ChatColor.RED + " ";
-	private static final String NO_PERMS_MSG = PREFIX_ERROR + "You do not have permission to use this command.";
-	private static final DateFormat RESTORE_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss");
+	private final WoeshBackupCommandExecutor commandExecutor = new WoeshBackupCommandExecutor(this);
+	private final WoeshBackupTabCompleter tabCompleter = new WoeshBackupTabCompleter(this);
 	
 	public WoeshBackupPlugin() {
 	}
@@ -149,20 +142,15 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		this.backupIntervalTask = task[0];
 	}
 	
-	/**
-	 * Schedules the recurring backup task that will first execute when the backup interval time has passed
-	 * since the last backup has started. Does nothing if the backup task is already running.
-	 */
-	private void startBackupIntervalTask() {
+	@Override
+	public void startBackupIntervalTask() {
 		int timeSinceLastBackupSec = (int) ((System.currentTimeMillis() - this.lastBackupStartTime) / 1000);
 		int timeUntilNextBackupSec = this.backupIntervalSeconds - timeSinceLastBackupSec;
 		this.startBackupIntervalTask((timeUntilNextBackupSec < 0 ? 0 : timeUntilNextBackupSec));
 	}
 	
-	/**
-	 * Stops the recurring backup task. Does nothing if no backup task is running.
-	 */
-	private void stopBackupIntervalTask() {
+	@Override
+	public void stopBackupIntervalTask() {
 		
 		// Return if the backup task is not active.
 		if(this.backupIntervalTask == null) {
@@ -174,18 +162,13 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		this.backupIntervalTask = null;
 	}
 	
-	/**
-	 * Checks whether the recurring backup task is active or not.
-	 * @return {@code true} if the recurring backup task is active, {@code false} otherwise.
-	 */
-	private boolean backupIntervalTaskActive() {
+	@Override
+	public boolean backupIntervalTaskActive() {
 		return this.backupIntervalTask != null;
 	}
 	
-	/**
-	 * Updates all {@link Backup}s. Does nothing if a backup is already in progress.
-	 */
-	private void performBackup() {
+	@Override
+	public void performBackup() {
 		
 		// Return if backups are still/already in progress.
 		if(this.backupInProgress()) {
@@ -309,9 +292,10 @@ public class WoeshBackupPlugin extends JavaPlugin {
 						} else {
 							WoeshBackupPlugin.this.getLogger().severe("Finished backup with errors: "
 									+ backup.getToBackupDir().getName() + " (" + timeElapsedStr + ").\n"
-									+ (debugEnabled ? "Here's the stacktrace:\n" + Utils.getStacktrace(ex)
-										: "Exception type: " + ex.getClass().getSimpleName()
-										+ ", Exception message: " + ex.getMessage()
+									+ (WoeshBackupPlugin.this.debugEnabled
+											? "Here's the stacktrace:\n" + Utils.getStacktrace(ex)
+											: "Exception type: " + ex.getClass().getSimpleName()
+											+ ", Exception message: " + ex.getMessage()
 									));
 						}
 					}
@@ -339,28 +323,95 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		this.backupThread.start();
 	}
 	
+	@Override
+	public boolean backupInProgress() {
+		return this.backupThread != null && this.backupThread.isAlive();
+	}
+	
 	/**
-	 * Adds a backup for all loaded worlds. If a world already has a corresponding backup, it is ignored.
+	 * Sets the time on which the last backup started.
+	 * @param time - The time on which the last backup started.
 	 */
-	private void addBackupsForWorlds() {
-		iterateLoop:
-		for(World world : Bukkit.getWorlds()) {
-			File toBackupWorldDir = world.getWorldFolder().getAbsoluteFile();
-			for(Backup backup : this.backups.keySet()) {
-				if(backup.getToBackupDir().equals(toBackupWorldDir)) {
-					continue iterateLoop;
-				}
-			}
-			ZipFileBackupPartFactory backupPartFactory =
-					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()));
-			this.backups.put(new SimpleBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
+	private void setLastBackupTime(long time) {
+		this.lastBackupStartTime = time;
+	}
+	
+	@Override
+	public long getLastBackupTime() {
+		return this.lastBackupStartTime;
+	}
+	
+	/**
+	 * Stores the time on which the last backup started as the lastModified timestamp in the persistent
+	 * ".lastBackup" file.
+	 * @throws IOException - When the time could not be set in the ".lastBackup" file as lastModified time.
+	 */
+	private void storeLastBackupTime() throws IOException {
+		File timeFile = new File(this.backupDir, ".lastBackup");
+		if(!timeFile.exists()) {
+			timeFile.createNewFile();
+		}
+		if(!timeFile.setLastModified(this.lastBackupStartTime)) {
+			throw new IOException("Unable to set last modified time for file: " + timeFile.getAbsolutePath());
 		}
 	}
 	
 	/**
-	 * (Re)loads the "config.yml" file and applies made changes.
+	 * Gets the time on which a backup was last performed from the persistent ".lastBackup" file.
+	 * @return The time on which the last backup that has finished started, according to the ".lastBackup" file
+	 * lastModified timestamp. Returns 0 when no persistent last backup time was available.
 	 */
-	private void loadConfig() {
+	private long getPersistentLastBackupTime() {
+		File timeFile = new File(this.backupDir, ".lastBackup");
+		return timeFile.lastModified();
+	}
+	
+	@Override
+	public int getBackupInterval() {
+		return this.backupIntervalSeconds;
+	}
+	
+	@Override
+	public int getMinRequiredDiskSpace() {
+		return this.minDiskSpaceToAllowBackup;
+	}
+	
+	@Override
+	public int removeGeneratedSnapshots() {
+		File[] snapDirs = this.snapshotsDir.listFiles();
+		if(snapDirs == null) {
+			return 0; // The snapshots directory does not exist or an I/O error has occurred.
+		}
+		boolean success = true;
+		int count = 0;
+		Pattern snapshotPattern = Pattern.compile(
+				"^\\d{4}-\\d{2}-\\d{2} \\d{2}-\\d{2}-\\d{2}\\.zip$"); // Format: "yyyy-MM-dd HH-mm-ss.zip".
+		for(File snapDir : snapDirs) {
+			if(snapDir.isDirectory()) {
+				File[] snapDirFiles = snapDir.listFiles();
+				if(snapDirFiles == null) {
+					continue; // An I/O error occurred, skip the directory.
+				}
+				boolean snapDirEmpty = true;
+				for(File file : snapDirFiles) {
+					if(file.isFile() && snapshotPattern.matcher(file.getName()).matches()) {
+						this.getLogger().info("Removing snapshot: " + snapDir.getName() + "/" + file.getName());
+						success = success && file.delete();
+						count++;
+					} else {
+						snapDirEmpty = false;
+					}
+				}
+				if(snapDirEmpty) {
+					snapDir.delete();
+				}
+			}
+		}
+		return success ? count : -1;
+	}
+	
+	@Override
+	public void loadConfig() {
 		
 		// Create the default config file if no "config.yml" is present.
 		this.saveDefaultConfig();
@@ -391,7 +442,7 @@ public class WoeshBackupPlugin extends JavaPlugin {
 			this.minDiskSpaceToAllowBackup = 5000;
 		}
 		
-		debugEnabled = this.getConfig().getBoolean("debugEnabled", false);
+		this.debugEnabled = this.getConfig().getBoolean("debugEnabled", false);
 		
 		// Set the directories in which backups/snapshots will be stored if they have changed.
 		File backupDir = new File(new File("").getAbsoluteFile(), backupDirPath);
@@ -433,16 +484,50 @@ public class WoeshBackupPlugin extends JavaPlugin {
 		
 		// Give feedback about the backup interval.
 		this.getLogger().info(String.format(
-				"WoeshBackup will now backup every %d minutes.", (int) (this.backupIntervalSeconds / 60)));
-		
+				"WoeshBackup will now backup every %d minutes.", (this.backupIntervalSeconds / 60)));
+	}
+	
+	@Override
+	public Set<Backup> getBackups() {
+		return Collections.unmodifiableSet(this.backups.keySet());
+	}
+	
+	@Override
+	public File getBackupDir() {
+		return this.backupDir;
+	}
+	
+	@Override
+	public File getSnapshotsDir() {
+		return this.snapshotsDir;
+	}
+	
+	@Override
+	public boolean debugEnabled() {
+		return this.debugEnabled;
+	}
+	
+	@Override
+	public void setDebugEnabled(boolean enabled) {
+		this.debugEnabled = enabled;
 	}
 	
 	/**
-	 * Checks if a backup is currently in progress.
-	 * @return {@code true} if a backup is in progress, {@code false} otherwise.
+	 * Adds a backup for all loaded worlds. If a world already has a corresponding backup, it is ignored.
 	 */
-	private boolean backupInProgress() {
-		return this.backupThread != null && this.backupThread.isAlive();
+	private void addBackupsForWorlds() {
+		iterateLoop:
+		for(World world : Bukkit.getWorlds()) {
+			File toBackupWorldDir = world.getWorldFolder().getAbsoluteFile();
+			for(Backup backup : this.backups.keySet()) {
+				if(backup.getToBackupDir().equals(toBackupWorldDir)) {
+					continue iterateLoop;
+				}
+			}
+			ZipFileBackupPartFactory backupPartFactory =
+					new ZipFileBackupPartFactory(new File(this.backupDir, toBackupWorldDir.getName()));
+			this.backups.put(new SimpleBackup(toBackupWorldDir, backupPartFactory, this.getLogger()), null);
+		}
 	}
 	
 	/**
@@ -475,582 +560,19 @@ public class WoeshBackupPlugin extends JavaPlugin {
 	}
 	
 	@Override
-	public boolean onCommand(final CommandSender sender, Command cmd, String label, String[] args) {
+	public boolean onCommand(final CommandSender sender, Command command, String label, String[] args) {
 		
 		// Check if the plugin is enabled and validate the command prefix.
-		if(!this.isEnabled() || !cmd.getName().equalsIgnoreCase("woeshbackup")) {
+		if(!this.isEnabled() || !command.getName().equalsIgnoreCase("woeshbackup")) {
 			return false;
 		}
 		
-		// Check for base permission.
-		if(!sender.hasPermission("woeshbackup.use")) {
-			sender.sendMessage(NO_PERMS_MSG);
-			return true;
-		}
-		
-		// "/woeshbackup".
-		if(args.length == 0) {
-			args = new String[] {"help"};
-		}
-		
-		switch(args[0].toLowerCase()) {
-			case "help": {
-				
-				// "/woeshbackup help [command]".
-				if(args.length == 1) {
-					List<String> authors = this.getDescription().getAuthors();
-					String authorsStr = "Author" + (authors.size() == 1 ? "" : "s") + ": &8"
-							+ (authors.size() == 0 ? "Unknown"
-							: Utils.glueIterable(authors, (String str) -> str, "&a, &8")) + "&a.";
-					sender.sendMessage((PREFIX_INFO + colorize(
-							"&aVersion: &8" + this.getDescription().getVersion() + "&a. " + authorsStr
-							+ "\n&6  - /woeshbackup help [subcommand]"
-							+ "\n&3    Displays this page or information about the subcommand."
-							+ "\n&6  - /woeshbackup status"
-							+ "\n&3    Displays the backup task status."
-							+ "\n&6  - /woeshbackup now"
-							+ "\n&3    Creates a new backup."
-							+ "\n&6  - /woeshbackup on"
-							+ "\n&3    Enables the backup interval task."
-							+ "\n&6  - /woeshbackup off"
-							+ "\n&3    Disables the backup interval task."
-							+ "\n&6  - /woeshbackup diskinfo"
-							+ "\n&3    Displays the total, free and usable disk space."
-							+ "\n&6  - /woeshbackup generatesnapshot <backupName> <beforeData>"
-							+ "\n&3    Generates a snapshot for the given backup before the given date."
-							+ "\n&6  - /woeshbackup removesnapshots"
-							+ "\n&3    Removes all generated snapshots."
-							+ "\n&6  - /woeshbackup toggledebug"
-							+ "\n&3    Toggles debug mode."
-							+ "\n&6  - /woeshbackup reload"
-							+ "\n&3    Reloads the config.")).split("\n"));
-				} else if(args.length == 2) {
-					switch(args[1].toLowerCase()) {
-						case "help":
-							sender.sendMessage(PREFIX_INFO
-									+ colorize("&6/woeshbackup help &8-&3 Displays command help."));
-							return true;
-						case "status":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup status &8-&3 Displays the backup task status."));
-							return true;
-						case "now":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup now &8-&3 Creates a new backup."));
-							return true;
-						case "on":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup on &8-&3 Enables the backup interval task."));
-							return true;
-						case "off":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup off &8-&3 Disables the backup interval task."));
-							return true;
-						case "diskinfo":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup diskinfo &8-&3 Displays the total, free and usable disk space."));
-							return true;
-						case "generatesnapshot":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup generatesnapshot <backupName> <beforeData> &8-&3"
-									+ " Generates a snapshot for the given backup before the given date."
-									+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss."));
-							return true;
-						case "removesnapshots":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup removesnapshots &8-&3 Removes all generated snapshots."));
-							return true;
-						case "toggledebug":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup toggledebug &8-&3 Toggles debug mode."));
-							return true;
-						case "reload":
-							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup reload &8-&3 Reloads the config."));
-							return true;
-						default:
-							sender.sendMessage(PREFIX_ERROR + "Unknown subcommand: /woeshbackup " + args[1]);
-							return true;
-					}
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "now": {
-				
-				// "/woeshbackup now".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.backupnow")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					// Return if a backup is running already.
-					if(this.backupInProgress()) {
-						sender.sendMessage(PREFIX_ERROR + "You cannot start a new backup while a backup is running.");
-						return true;
-					}
-					
-					// Cancel the current task if it exists.
-					boolean taskExists = this.backupIntervalTaskActive();
-					if(taskExists) {
-						this.stopBackupIntervalTask();
-					}
-					
-					// Perform the backup.
-					this.performBackup();
-					
-					// Re-enable the task if it existed.
-					if(taskExists) {
-						this.startBackupIntervalTask();
-					}
-					
-					// Print feedback.
-					sender.sendMessage(PREFIX_INFO + "Backup started. Auto-backups are currently "
-							+ (taskExists ? "enabled" : "disabled") + ".");
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "status": {
-				
-				// "/woeshbackup status".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.status")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					// Give feedback about if a backup is in progress.
-					sender.sendMessage(PREFIX_INFO + (this.backupInProgress()
-							? "There is a backup in progress."
-							: "There is no backup in progress."));
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "on": {
-				
-				// "/woeshbackup on".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.toggleautobackup")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					// Check if there is a task running already.
-					if(this.backupIntervalTaskActive()) {
-						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already enabled.");
-					} else {
-						sender.sendMessage(PREFIX_INFO + String.format("WoeshBackup will now backup every %d minutes.",
-								this.backupIntervalSeconds / 60));
-						this.startBackupIntervalTask();
-					}
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "off": {
-				
-				// "/woeshbackup off".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.toggleautobackup")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					// Check if there is a task running already.
-					if(!this.backupIntervalTaskActive()) {
-						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already disabled.");
-					} else {
-						this.stopBackupIntervalTask();
-						sender.sendMessage(PREFIX_INFO + "WoeshBackup stopped.");
-					}
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "diskinfo": {
-				
-				// "/woeshbackup diskinfo".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.diskinfo")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					// Get the root directory and list its properties.
-					File file = this.backupDir;
-					while(file.getParentFile() != null) {
-						file = file.getParentFile();
-					}
-					if(file.exists()) {
-						sender.sendMessage(PREFIX_INFO + "Listing disk info for: " + file.getAbsolutePath()
-								+ "\n  Free disk space: " + (file.getFreeSpace() / 1000000) + "MB"
-								+ "\n  Total disk space: " + (file.getTotalSpace() / 1000000) + "MB"
-								+ "\n  Free usable disk space: " + (file.getUsableSpace() / 1000000) + "MB");
-					} else {
-						sender.sendMessage(
-								PREFIX_ERROR + "Unable to get disk info. Root directory could not be resolved.");
-					}
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "generatesnapshot": {
-				
-				// Check argument size.
-				if(args.length < 3) {
-					sender.sendMessage(PREFIX_ERROR + "Not enough arguments."
-							+ "\n" + ChatColor.GOLD + "Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
-							+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss");
-					return true;
-				} else if(args.length > 3) {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments."
-							+ "\n" + ChatColor.GOLD + "Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
-							+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss");
-					return true;
-				}
-				
-				// Check for permission.
-				if(!sender.hasPermission("woeshbackup.generatesnapshot")) {
-					sender.sendMessage(NO_PERMS_MSG);
-					return true;
-				}
-				
-				// Parse beforeDate argument.
-				String beforeDateStr = args[2];
-				long beforeDate;
-				try {
-					beforeDate = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").parse(beforeDateStr).getTime();
-				} catch (ParseException e) {
-					try {
-						beforeDate = new SimpleDateFormat("yyyy-MM-dd").parse(beforeDateStr).getTime();
-					} catch (ParseException e1) {
-						sender.sendMessage(PREFIX_ERROR + "Syntax error: beforeDate has to be in format"
-								+ " yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss. Found: " + beforeDateStr);
-						return true;
-					}
-				}
-				
-				// Check if the given backup exists.
-				String backupName = args[1];
-				Backup backup = null;
-				for(Backup b : this.backups.keySet()) {
-					if(b.getToBackupDir().getName().equalsIgnoreCase(backupName)) {
-						backup = b;
-						break;
-					}
-				}
-				if(backup == null) {
-					sender.sendMessage(PREFIX_ERROR + "Backup could not be found: " + backupName);
-					return true;
-				}
-				
-				// Check if there is at least 2GB of free disk space. Don't restore otherwise.
-				long availableDiskSpace =
-						(this.snapshotsDir.isDirectory() ? this.snapshotsDir : this.backupDir).getUsableSpace();
-				if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
-					sender.sendMessage(PREFIX_ERROR + "Cannot generate snapshots because less than "
-							+ this.minDiskSpaceToAllowBackup + "MB of free disk space was found("
-							+ (availableDiskSpace / 1000000) + "MB).");
-					return true;
-				}
-				
-				// Print feedback about starting.
-				sender.sendMessage(PREFIX_INFO + "Generating snapshot for backup: "
-						+ backup.getToBackupDir().getName() + ", before date: " + beforeDateStr);
-				
-				// Create a snapshot for the given date (merge backups and place the result in the snapshots directory).
-				final Backup finalBackup = backup;
-				final long finalBeforeDate = beforeDate;
-				new Thread(() -> {
-					
-					// Create the snapshots directory if it does not yet exist.
-					if(!WoeshBackupPlugin.this.snapshotsDir.exists()) {
-						WoeshBackupPlugin.this.snapshotsDir.mkdirs();
-					}
-					
-					// Generate a snapshot from the backup.
-					BackupException ex = null;
-					try {
-						File restoreToDir =
-								new File(WoeshBackupPlugin.this.snapshotsDir, finalBackup.getToBackupDir().getName());
-						finalBackup.restore(finalBeforeDate, (restoreFileDate) ->
-								new BackupRestoreZipFileWriter(restoreToDir, restoreFileDate));
-					} catch (BackupException e) {
-						ex = e;
-					} catch (InterruptedException e) {
-						sender.sendMessage(PREFIX_ERROR + "Backup restore was interrupted during execution: "
-								+ finalBackup.getToBackupDir().getName());
-						return;
-					}
-					
-					// Give feedback to the player.
-					final BackupException finalEx = ex;
-					if(WoeshBackupPlugin.this.isEnabled()) {
-						Bukkit.getScheduler().runTask(WoeshBackupPlugin.this, () -> {
-							if(finalEx == null) {
-								sender.sendMessage(PREFIX_INFO + "Succesfully generated snapshot for backup: "
-										+ finalBackup.getToBackupDir().getName());
-							} else {
-								if(debugEnabled) {
-									WoeshBackupPlugin.this.getLogger().severe("An Exception occurred "
-											+ "while generating a snapshot for backup: "
-											+ finalBackup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
-											+ Utils.getStacktrace(finalEx));
-								}
-								if(finalEx.getCause() == null) {
-									sender.sendMessage(PREFIX_ERROR + "Failed to generate snapshot: "
-											+ finalBackup.getToBackupDir().getName()
-											+ ". Info: " + finalEx.getMessage());
-								} else {
-									String message = "Failed to generate snapshot: "
-											+ finalBackup.getToBackupDir().getName()
-											+ ". Info: " + finalEx.getMessage();
-									Throwable cause = finalEx.getCause();
-									while(cause != null) {
-										message += "\nCaused by: " + finalEx.getCause().getClass().getSimpleName()
-												+ "\n\tMessage: " + finalEx.getCause().getMessage();
-										cause = cause.getCause();
-									}
-									sender.sendMessage(PREFIX_ERROR + message);
-								}
-							}
-						});
-					}
-				}).start();
-				return true;
-			}
-			case "removesnapshots": {
-				
-				// "/woeshbackup removesnapshots".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.removesnapshot")
-							&& !sender.hasPermission("woeshbackup.removesnapshots")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					int amount = this.removeGeneratedSnapshots();
-					sender.sendMessage(amount >= 0 ? "Successfully removed " + amount + " snapshots."
-							: "An error occured while removing one or multiple snapshots.");
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "toggledebug": {
-				
-				// "/woeshbackup toggledebug".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.toggledebug")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					debugEnabled = !debugEnabled;
-					sender.sendMessage("Debug " + (debugEnabled ? "enabled" : "disabled") + ".");
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			case "reload": {
-				
-				// "/woeshbackup reload".
-				if(args.length == 1) {
-					
-					// Check for permission.
-					if(!sender.hasPermission("woeshbackup.reload")) {
-						sender.sendMessage(NO_PERMS_MSG);
-						return true;
-					}
-					
-					this.loadConfig();
-					sender.sendMessage("Config reloaded.");
-				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
-				}
-				return true;
-			}
-			default: {
-				sender.sendMessage(PREFIX_ERROR + "Unknown argument: " + args[0]);
-				return true;
-			}
-		}
+		// Pass the command to the command executor.
+		return this.commandExecutor.onCommand(sender, command, label, args);
 	}
 	
 	@Override
 	public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-		
-		// Check for permission.
-		if(!sender.hasPermission("woeshbackup.woeshbackup") || args.length == 0) { // 0 length should be impossible.
-			return new ArrayList<String>();
-		}
-		
-		// TAB-complete "/woeshbackup <arg>".
-		if(args.length == 1) {
-			List<String> ret = new ArrayList<String>();
-			for(String comp : new String[] {"now", "status", "on", "off", "diskinfo",
-					"generatesnapshot", "removesnapshots", "toggledebug", "reload"}) {
-				if(comp.startsWith(args[0].toLowerCase())) {
-					ret.add(comp);
-				}
-			}
-			return ret;
-		}
-		
-		// TAB-complete "/woeshbackup generatesnapshot <backupName> <beforeData>".
-		// beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss.
-		if(args[0].equalsIgnoreCase("generatesnapshot")) {
-			
-			// Check for permission.
-			if(!sender.hasPermission("woeshbackup.generatesnapshot")) {
-				return new ArrayList<String>(); // Return an empty list so no info about backups can be obtained.
-			}
-			
-			if(args.length == 2) {
-				List<String> ret = new ArrayList<String>();
-				for(Backup backup : this.backups.keySet()) {
-					if(backup.getToBackupDir().getName().toLowerCase().startsWith(args[1].toLowerCase())) {
-						ret.add(backup.getToBackupDir().getName());
-					}
-				}
-				return ret;
-			}
-			if(args.length == 3) {
-				List<String> ret = new ArrayList<String>();
-				for(Backup backup : this.backups.keySet()) {
-					if(backup.getToBackupDir().getName().equalsIgnoreCase(args[1])) {
-						try {
-							for(Long restoreDateThresh : backup.getRestoreDateThresholds()) {
-								String restoreDate = RESTORE_DATE_FORMAT.format(new Date(restoreDateThresh));
-								if(restoreDate.startsWith(args[2])) {
-									ret.add(restoreDate);
-								}
-							}
-						} catch (IOException e) {
-							this.getLogger().warning("An exception occurred while tabcompleting backup part dates."
-									+ " Here's the stacktrace: " + Utils.getStacktrace(e));
-						}
-					}
-				}
-				return ret;
-			}
-		}
-		
-		// Don't use the default TABcompleter, completing names is useless here.
-		return new ArrayList<String>();
-	}
-	
-	/**
-	 * Colorizes the given string by replacing color char '&' by {@link ChatColor#COLOR_CHAR} for
-	 * color idenfitiers 0-9a-fA-F.
-	 * @param str - The string to colorize.
-	 * @return The colorized string.
-	 */
-	private static String colorize(String str) {
-		return str.replaceAll("(?<!\\&)\\&(?=[0-9a-fA-F])", ChatColor.COLOR_CHAR + "");
-	}
-	
-	/**
-	 * Removes all generated snapshots from the snapshots directory.
-	 * @return The number of removed snapshots if the removal was succesful or -1 if one or multiple snapshots
-	 * could not be removed.
-	 */
-	private int removeGeneratedSnapshots() {
-		File[] snapDirs = this.snapshotsDir.listFiles();
-		if(snapDirs == null) {
-			return 0; // The snapshots directory does not exist or an I/O error has occurred.
-		}
-		boolean success = true;
-		int count = 0;
-		Pattern snapshotPattern = Pattern.compile(
-				"^\\d{4}-\\d{2}-\\d{2} \\d{2}-\\d{2}-\\d{2}\\.zip$"); // Format: "yyyy-MM-dd HH-mm-ss.zip".
-		for(File snapDir : snapDirs) {
-			if(snapDir.isDirectory()) {
-				File[] snapDirFiles = snapDir.listFiles();
-				if(snapDirFiles == null) {
-					continue; // An I/O error occurred, skip the directory.
-				}
-				boolean snapDirEmpty = true;
-				for(File file : snapDirFiles) {
-					if(file.isFile() && snapshotPattern.matcher(file.getName()).matches()) {
-						this.getLogger().info("Removing snapshot: " + snapDir.getName() + "/" + file.getName());
-						success = success && file.delete();
-						count++;
-					} else {
-						snapDirEmpty = false;
-					}
-				}
-				if(snapDirEmpty) {
-					snapDir.delete();
-				}
-			}
-		}
-		return success ? count : -1;
-	}
-	
-	/**
-	 * Sets the time on which the last backup started.
-	 * @param time - The time on which the last backup started.
-	 */
-	private void setLastBackupTime(long time) {
-		this.lastBackupStartTime = time;
-	}
-	
-	/**
-	 * Gets the time on which the last backup started.
-	 * @return The time on which the last backup started.
-	 * Returns 0 when unknown (no backups were started since enabling and no persistent last backup time was available).
-	 */
-	private long getLastBackupTime() {
-		return this.lastBackupStartTime;
-	}
-	
-	/**
-	 * Stores the time on which the last backup started as the lastModified timestamp in the persistent
-	 * ".lastBackup" file.
-	 * @throws IOException - When the time could not be set in the ".lastBackup" file as lastModified time.
-	 */
-	private void storeLastBackupTime() throws IOException {
-		File timeFile = new File(this.backupDir, ".lastBackup");
-		if(!timeFile.exists()) {
-			timeFile.createNewFile();
-		}
-		if(!timeFile.setLastModified(this.lastBackupStartTime)) {
-			throw new IOException("Unable to set last modified time for file: " + timeFile.getAbsolutePath());
-		}
-	}
-	
-	/**
-	 * Gets the time on which a backup was last performed from the persistent ".lastBackup" file.
-	 * @return The time on which the last backup that has finished started, according to the ".lastBackup" file
-	 * lastModified timestamp. Returns 0 when no persistent last backup time was available.
-	 */
-	private long getPersistentLastBackupTime() {
-		File timeFile = new File(this.backupDir, ".lastBackup");
-		return timeFile.lastModified();
+		return this.tabCompleter.onTabComplete(sender, command, alias, args);
 	}
 }
