@@ -34,6 +34,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 	private static final String PREFIX_INFO = PREFIX_RAW + ChatColor.GREEN + " ";
 	private static final String PREFIX_ERROR = PREFIX_RAW + ChatColor.RED + " ";
 	private static final String NO_PERMS_MSG = PREFIX_ERROR + "You do not have permission to use this command.";
+	private static final String TOO_MANY_ARGS_MSG = PREFIX_ERROR + "Too many arguments.";
 	
 	/**
 	 * Creates a new {@link CommandExecutor} for WoeshBackup commands.
@@ -141,7 +142,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							return true;
 					}
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -177,10 +178,10 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Print feedback.
-					sender.sendMessage(PREFIX_INFO + "Backup started. Auto-backups are currently "
+					sender.sendMessage(PREFIX_INFO + "Backup started. Auto backup is currently "
 							+ (taskExists ? "enabled" : "disabled") + ".");
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -214,7 +215,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 									+ (this.api.debugEnabled() ? "Yes" : "No") + ChatColor.GREEN + "."
 					});
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -231,14 +232,15 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					
 					// Check if there is a task running already.
 					if(this.api.backupIntervalTaskActive()) {
-						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already enabled.");
+						sender.sendMessage(PREFIX_ERROR + "Auto backup is already enabled.");
 					} else {
-						sender.sendMessage(PREFIX_INFO + String.format("WoeshBackup will now backup every %d minutes.",
-								this.api.getBackupInterval() / 60));
 						this.api.startBackupIntervalTask();
+						sender.sendMessage(PREFIX_INFO + String.format(
+								"Auto backup enabled. Backups will be made every %d minutes.",
+								this.api.getBackupInterval() / 60));
 					}
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -255,13 +257,13 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					
 					// Check if there is a task running already.
 					if(!this.api.backupIntervalTaskActive()) {
-						sender.sendMessage(PREFIX_ERROR + "WoeshBackup is already disabled.");
+						sender.sendMessage(PREFIX_ERROR + "Auto backup is already disabled.");
 					} else {
 						this.api.stopBackupIntervalTask();
-						sender.sendMessage(PREFIX_INFO + "WoeshBackup stopped.");
+						sender.sendMessage(PREFIX_INFO + "Auto backup disabled.");
 					}
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -282,16 +284,17 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 						file = file.getParentFile();
 					}
 					if(file.exists()) {
-						sender.sendMessage(PREFIX_INFO + "Listing disk info for: " + file.getAbsolutePath()
-								+ "\n  Free disk space: " + (file.getFreeSpace() / 1000000) + "MB"
-								+ "\n  Total disk space: " + (file.getTotalSpace() / 1000000) + "MB"
-								+ "\n  Free usable disk space: " + (file.getUsableSpace() / 1000000) + "MB");
+						sender.sendMessage(new String[] {
+								PREFIX_INFO + "Listing disk info for: " + file.getAbsolutePath(),
+								PREFIX_INFO + "  Free disk space: " + (file.getFreeSpace() / 1000000) + "MB",
+								PREFIX_INFO + "  Total disk space: " + (file.getTotalSpace() / 1000000) + "MB",
+								PREFIX_INFO + "  Free usable disk space: " + (file.getUsableSpace() / 1000000) + "MB"});
 					} else {
 						sender.sendMessage(
 								PREFIX_ERROR + "Unable to get disk info. Root directory could not be resolved.");
 					}
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -299,14 +302,18 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				
 				// Check argument size.
 				if(args.length < 3) {
-					sender.sendMessage(PREFIX_ERROR + "Not enough arguments."
-							+ "\n" + ChatColor.GOLD + "Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
-							+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss");
+					sender.sendMessage(new String[] {
+							PREFIX_ERROR + "Not enough arguments.",
+							PREFIX_RAW + ChatColor.GOLD
+									+ " Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
+									+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss"});
 					return true;
 				} else if(args.length > 3) {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments."
-							+ "\n" + ChatColor.GOLD + "Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
-							+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss");
+					sender.sendMessage(new String[] {
+							TOO_MANY_ARGS_MSG,
+							PREFIX_RAW + ChatColor.GOLD
+									+ " Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
+									+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss"});
 					return true;
 				}
 				
@@ -434,9 +441,9 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					
 					int amount = this.api.removeGeneratedSnapshots();
 					sender.sendMessage(amount >= 0 ? "Successfully removed " + amount + " snapshots."
-							: "An error occured while removing one or multiple snapshots.");
+							: "An error occured while removing one or more snapshots.");
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -453,7 +460,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					this.api.setDebugEnabled(!this.api.debugEnabled());
 					sender.sendMessage("Debug " + (this.api.debugEnabled() ? "enabled" : "disabled") + ".");
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
@@ -471,7 +478,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					this.api.loadConfig();
 					sender.sendMessage("Config reloaded.");
 				} else {
-					sender.sendMessage(PREFIX_ERROR + "Too many arguments.");
+					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
 				return true;
 			}
