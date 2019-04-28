@@ -440,8 +440,8 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					int amount = this.api.removeGeneratedSnapshots();
-					sender.sendMessage(amount >= 0 ? "Successfully removed " + amount + " snapshots."
-							: "An error occured while removing one or more snapshots.");
+					sender.sendMessage(amount >= 0 ? PREFIX_INFO + "Successfully removed " + amount + " snapshots."
+							: PREFIX_ERROR + "An error occured while removing one or more snapshots.");
 				} else {
 					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
@@ -458,7 +458,8 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 						return true;
 					}
 					this.api.setDebugEnabled(!this.api.debugEnabled());
-					sender.sendMessage("Debug " + (this.api.debugEnabled() ? "enabled" : "disabled") + ".");
+					sender.sendMessage(PREFIX_INFO + "Debug "
+							+ (this.api.debugEnabled() ? "enabled" : "disabled") + ".");
 				} else {
 					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
@@ -476,7 +477,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					this.api.loadConfig();
-					sender.sendMessage("Config reloaded.");
+					sender.sendMessage(PREFIX_INFO + "Config reloaded.");
 				} else {
 					sender.sendMessage(TOO_MANY_ARGS_MSG);
 				}
