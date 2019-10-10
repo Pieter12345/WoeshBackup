@@ -459,11 +459,11 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 					+ backupIntervalSeconds + ". Using default value: 3600 [sec].");
 			backupIntervalSeconds = 3600;
 		}
-		this.timeToKeepBackups = 1000 * this.getConfig().getInt("maxBackupAge", 1814400);
+		this.timeToKeepBackups = 1000L * this.getConfig().getInt("maxBackupAge", 1814400);
 		if(this.timeToKeepBackups <= 1000 * 3600) {
 			this.logger.warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
 					+ (this.timeToKeepBackups / 1000) + ". Using default value: 1814400 [sec] (21 days).");
-			this.timeToKeepBackups = 1000 * 1814400;
+			this.timeToKeepBackups = 1000L * 1814400;
 		}
 		this.minDiskSpaceToAllowBackup = this.getConfig().getInt("dontBackupIfLessThanThisSpaceIsAvailableInMB", 5000);
 		if(this.minDiskSpaceToAllowBackup < 1000) {
