@@ -352,7 +352,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					return true;
 				}
 				
-				// Check if there is at least 2GB of free disk space. Don't restore otherwise.
+				// Check if there is at least a user-defined amount of free disk space. Don't restore otherwise.
 				long availableDiskSpace = (this.api.getSnapshotsDir().isDirectory()
 						? this.api.getSnapshotsDir() : this.api.getBackupDir()).getUsableSpace();
 				if(availableDiskSpace < this.api.getMinRequiredDiskSpace() * 1000000L) {
