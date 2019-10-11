@@ -85,8 +85,8 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							+ "\n&3    Disables the backup interval task."
 							+ "\n&6  - /woeshbackup diskinfo"
 							+ "\n&3    Displays the total, free and usable disk space."
-							+ "\n&6  - /woeshbackup generatesnapshot <backupName> <beforeData>"
-							+ "\n&3    Generates a snapshot for the given backup before the given date."
+							+ "\n&6  - /woeshbackup generatesnapshot <backupName> <date>"
+							+ "\n&3    Generates a snapshot for the given backup on the given date."
 							+ "\n&6  - /woeshbackup removesnapshots"
 							+ "\n&3    Removes all generated snapshots."
 							+ "\n&6  - /woeshbackup toggledebug"
@@ -121,9 +121,9 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							return true;
 						case "generatesnapshot":
 							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup generatesnapshot <backupName> <beforeData> &8-&3"
-									+ " Generates a snapshot for the given backup before the given date."
-									+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss."));
+									"&6/woeshbackup generatesnapshot <backupName> <date> &8-&3"
+									+ " Generates a snapshot for the given backup on the given date."
+									+ " date is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss."));
 							return true;
 						case "removesnapshots":
 							sender.sendMessage(PREFIX_INFO + colorize(
@@ -305,15 +305,15 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					sender.sendMessage(new String[] {
 							PREFIX_ERROR + "Not enough arguments.",
 							PREFIX_RAW + ChatColor.GOLD
-									+ " Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
-									+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss"});
+									+ " Syntax: /woeshbackup generatesnapshot <backupName> <date>."
+									+ " date is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss"});
 					return true;
 				} else if(args.length > 3) {
 					sender.sendMessage(new String[] {
 							TOO_MANY_ARGS_MSG,
 							PREFIX_RAW + ChatColor.GOLD
-									+ " Syntax: /woeshbackup generatesnapshot <backupName> <beforeData>."
-									+ " beforeDate is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss"});
+									+ " Syntax: /woeshbackup generatesnapshot <backupName> <date>."
+									+ " date is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss"});
 					return true;
 				}
 				
@@ -323,17 +323,17 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					return true;
 				}
 				
-				// Parse beforeDate argument.
-				String beforeDateStr = args[2];
-				long beforeDate;
+				// Parse date argument.
+				String dateStr = args[2];
+				long date;
 				try {
-					beforeDate = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").parse(beforeDateStr).getTime();
+					date = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss").parse(dateStr).getTime();
 				} catch (ParseException e) {
 					try {
-						beforeDate = new SimpleDateFormat("yyyy-MM-dd").parse(beforeDateStr).getTime();
+						date = new SimpleDateFormat("yyyy-MM-dd").parse(dateStr).getTime();
 					} catch (ParseException e1) {
-						sender.sendMessage(PREFIX_ERROR + "Syntax error: beforeDate has to be in format"
-								+ " yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss. Found: " + beforeDateStr);
+						sender.sendMessage(PREFIX_ERROR + "Syntax error: date has to be in format"
+								+ " yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss. Found: " + dateStr);
 						return true;
 					}
 				}
@@ -364,11 +364,11 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				
 				// Print feedback about starting.
 				sender.sendMessage(PREFIX_INFO + "Generating snapshot for backup: "
-						+ backup.getToBackupDir().getName() + ", before date: " + beforeDateStr);
+						+ backup.getToBackupDir().getName() + ", date: " + dateStr);
 				
 				// Create a snapshot for the given date (merge backups and place the result in the snapshots directory).
 				final Backup finalBackup = backup;
-				final long finalBeforeDate = beforeDate;
+				final long finalDate = date;
 				new Thread(() -> {
 					
 					// Create the snapshots directory if it does not yet exist.
@@ -381,7 +381,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					try {
 						File restoreToDir = new File(WoeshBackupCommandExecutor.this.api.getSnapshotsDir(),
 								finalBackup.getToBackupDir().getName());
-						finalBackup.restore(finalBeforeDate, (restoreFileDate) ->
+						finalBackup.restore(finalDate + 1, (restoreFileDate) ->
 								new BackupRestoreZipFileWriter(restoreToDir, restoreFileDate));
 					} catch (BackupException e) {
 						ex = e;
