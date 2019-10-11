@@ -43,10 +43,8 @@ public class ZipFileBackupPartFactory implements BackupPartFactory {
 		// Create list to return.
 		List<BackupPart> ret = new ArrayList<BackupPart>();
 		
-		// Get all .zip files dated before the given timestamp.
-		String beforeDateStr = (beforeDate < 0 ? "" : BACKUP_DATE_FORMAT.format(new Date(beforeDate)));
-		File[] files = this.storageDir.listFiles((dir, name) ->
-				name.endsWith(".zip") && (beforeDateStr.isEmpty() || name.compareTo(beforeDateStr) < 0));
+		// Get all .zip files.
+		File[] files = this.storageDir.listFiles((dir, name) -> name.endsWith(".zip"));
 		if(files == null) {
 			return ret; // Storage directory is not a directory, so there are no backups.
 		}
@@ -63,8 +61,10 @@ public class ZipFileBackupPartFactory implements BackupPartFactory {
 				continue;
 			}
 			
-			// Create the backup part and add it to the return list.
-			ret.add(this.createNew(time, fileName));
+			// Create the backup part and add it to the return list if the backup dates before the given beforeDate.
+			if(beforeDate < 0 || time < beforeDate) {
+				ret.add(this.createNew(time, fileName));
+			}
 		}
 		
 		// Sort the backups from oldest (index 0) to newest.
