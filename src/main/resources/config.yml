@@ -14,11 +14,11 @@ autoBackup:
     # Enable or disable auto backup. Default: true.
     enabled: true
     
-    # If enabled is true, a backup will be made every this amount of seconds. Default: 3600.
-    interval: 3600
+    # If enabled is true, a backup will be made every this amount of time. Example format: 1d12h5m30s. Default: 1h (1 hour).
+    interval: 1h
 
-# The time to keep backups in seconds. Default: 1814400 (21 days).
-maxBackupAge: 1814400
+# The time to keep backups. Example format: 1d12h5m30s. Default: 21d (21 days).
+maxBackupAge: 21d
 
 # If less than this amount of disk space is available, no backups will start. The value is in MBs.
 dontBackupIfLessThanThisSpaceIsAvailableInMB: 5000
