@@ -43,7 +43,7 @@ public class WoeshBackupTabCompleter implements TabCompleter {
 	public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
 		
 		// Check for permission.
-		if(!sender.hasPermission("woeshbackup.woeshbackup") || args.length == 0) { // 0 length should be impossible.
+		if(!sender.hasPermission("woeshbackup.use") || args.length == 0) { // 0 length should be impossible.
 			return new ArrayList<String>();
 		}
 		
