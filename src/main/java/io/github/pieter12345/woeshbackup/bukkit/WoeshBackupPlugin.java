@@ -453,7 +453,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Read and validate values from the config.
 		String backupDirPath = this.getConfig().getString("backupDirPath", "woeshBackups");
 		String snapshotsDirPath = this.getConfig().getString("snapshotsDirPath", "snapshots");
-		int backupIntervalSeconds = this.getConfigTimeSeconds("autoBackup.interval", 3600);
+		int backupIntervalSeconds = (int) this.getConfigTimeSeconds("autoBackup.interval", 3600);
 		if(backupIntervalSeconds <= 60) {
 			this.logger.warning("Invalid config entry found: autoBackup.interval has to be >= 60 [sec]. Found: "
 					+ backupIntervalSeconds + ". Using default value: 3600 [sec].");
@@ -520,13 +520,13 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	
 	/**
 	 * Gets a time in seconds from the configuration. Accepted config values:
-	 * Integer, Long (will be truncated), Float/Double (will be rounded to int),
+	 * Integer, Long, Float/Double (will be rounded to long),
 	 * String in format (\\d+[dhms])+ (e.g. "1d12h5m30s" or "5d").
 	 * @param configPath - Path in the configuration.
 	 * @param def - Default value.
 	 * @return The time in seconds or the default value if the time was not present or not in a valid format.
 	 */
-	private int getConfigTimeSeconds(String configPath, int def) {
+	private long getConfigTimeSeconds(String configPath, long def) {
 		
 		// Get object from the configuration.
 		Object obj = this.getConfig().get(configPath);
@@ -538,7 +538,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		
 		// Return an int if a number was found. This may be rounded and/or truncated.
 		if(obj instanceof Number) {
-			return ((Number) obj).intValue();
+			return ((Number) obj).longValue();
 		}
 		
 		// Parse string value to time.
@@ -547,7 +547,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 			if(str.isEmpty()) {
 				return def;
 			}
-			int time = 0;
+			long time = 0;
 			int startInd = 0;
 			for(int i = 0; i < str.length(); i++) {
 				char ch = str.charAt(i);
@@ -557,7 +557,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 				if(startInd == i) {
 					return def; // Invalid time identifier.
 				}
-				int num = Integer.parseInt(str.substring(startInd, i));
+				long num = Long.parseLong(str.substring(startInd, i));
 				switch(ch) {
 					case 'd': time += num * 60 * 60 * 24; break;
 					case 'h': time += num * 60 * 60; break;
