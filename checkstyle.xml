@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE module PUBLIC "-//Puppy Crawl//DTD Check Configuration 1.3//EN" "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+<!DOCTYPE module PUBLIC "-//Puppy Crawl//DTD Check Configuration 1.3//EN" "https://checkstyle.org/dtds/configuration_1_3.dtd">
 
 <!--
 	Checkstyle-Configuration: JavaLoader
@@ -22,14 +22,6 @@
 		
 		<!-- Enable usage of "@SuppressWarnings(checkstyle:<CHECK>)" to suppress checkstyle violations -->
 		<module name="SuppressWarningsHolder"/>
-		
-		<!-- Set tabWidth property for checks such as line length -->
-		<property name="tabWidth" value="4"/>
-		
-		<!-- Line length <= 120 characters -->
-		<module name="LineLength">
-			<property name="max" value="120"/>
-		</module>
 		
 		<!-- Indent must use tab characters -->
 		<module name="RegexpSinglelineJava">
@@ -241,6 +233,12 @@
 		
 	</module>
 	
+	<!-- Line length <= 120 characters -->
+	<module name="LineLength">
+		<property name="max" value="120"/>
+		<property name="tabWidth" value="4"/>
+	</module>
+	
 	<!-- Disallow trailing whitespaces/tabs, excluding "^\t+$". -->
 	<module name="RegexpSingleline">
 		<property name="severity" value="error"/>
@@ -270,6 +268,8 @@
 	</module>
 	
 	<!-- Ensure that every file ends with a newline -->
-	<module name="NewlineAtEndOfFile"/>
+	<module name="NewlineAtEndOfFile">
+		<property name="lineSeparator" value="lf_cr_crlf"/>
+	</module>
 	
 </module>
