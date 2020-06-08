@@ -291,7 +291,6 @@ class SimpleBackupTest {
 	
 	/**
 	 * Tests that {@link SimpleBackup#merge(List, long)} properly merges and removes backup parts as expected.
-	 * Also tests that the merged backup parts will be deleted afterwards.
 	 * @throws Exception
 	 */
 	@Test
@@ -353,6 +352,61 @@ class SimpleBackupTest {
 		// Verify that the new backup parts were closed.
 		verify(newBackupPart1, times(1)).close();
 		verify(newBackupPart2, times(1)).close();
+	}
+	
+	/**
+	 * Tests that {@link SimpleBackup#merge(List, long)} properly merges and removes backup parts as expected for a
+	 * single interval.
+	 * @throws Exception
+	 */
+	@Test
+	void testIntervalMergeSingleInterval() throws Exception {
+		
+		// Create mocked backend.
+		BackupPart backupPart1 = mockBackupPart(10000L * 1000L, null, null);
+		BackupPart backupPart2 = mockBackupPart(15000L * 1000L, null, null);
+		BackupPart backupPart3 = mockBackupPart(19000L * 1000L, null, null);
+		BackupPart backupPart4 = mockBackupPart(20000L * 1000L, null, null);
+		BackupPart backupPart5 = mockBackupPart(50000L * 1000L, null, null);
+		BackupPart backupPart6 = mockBackupPart(55000L * 1000L, null, null);
+		BackupPart newBackupPart = mock(BackupPart.class);
+		BackupPartFactory backupPartFactory = mockBackupPartFactory(newBackupPart,
+				Arrays.asList(backupPart1, backupPart2, backupPart3, backupPart4, backupPart5, backupPart6));
+		
+		// Create backup.
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		
+		// Perform the merge with a single interval.
+		List<BoundedInterval> mergeIntervals = Arrays.asList(
+				new BoundedInterval(10000L, -1) // Accept 1, merging 2 and 3 into 4, accept 5, special accept 6 (last).
+			);
+		backup.merge(mergeIntervals, 150000L * 1000L);
+		
+		// Verify that 2 backup parts were requested from the factory.
+		verify(backupPartFactory, times(1)).createNew(anyLong());
+		
+		// Verify that no changes were added to the new backup parts without using merge().
+		verify(newBackupPart, never()).addAddition(anyString(), any(File.class));
+		verify(newBackupPart, never()).addModification(anyString(), any(File.class));
+		verify(newBackupPart, never()).addRemoval(anyString());
+		verify(newBackupPart, times(3)).merge(any(BackupPart.class));
+		
+		// Verify that the backups were merged in the expected order.
+		InOrder inOrder = inOrder(newBackupPart);
+		inOrder.verify(newBackupPart).merge(backupPart4);
+		inOrder.verify(newBackupPart).merge(backupPart3);
+		inOrder.verify(newBackupPart).merge(backupPart2);
+		
+		// Verify that the merged backups were deleted and the others were not.
+		verify(backupPart1, never()).delete();
+		verify(backupPart2, times(1)).delete();
+		verify(backupPart3, times(1)).delete();
+		verify(backupPart4, times(1)).delete();
+		verify(backupPart5, never()).delete();
+		verify(backupPart6, never()).delete();
+		
+		// Verify that the new backup part was closed.
+		verify(newBackupPart, times(1)).close();
 	}
 	
 	/**

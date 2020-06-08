@@ -221,11 +221,10 @@ public class SimpleBackup implements Backup {
 			} else {
 				intervalEndTime -= 1000L * interval.getDuration();
 			}
-			System.out.println(">Interval start: " + intervalStartTime + ", end: " + intervalEndTime);
 		}
 		
 		// Merge backups older than the last interval.
-		if(intervalEndTime != 0) {
+		if(intervalEndTime > 0) {
 			this.merge(intervalEndTime);
 		}
 		
@@ -235,27 +234,13 @@ public class SimpleBackup implements Backup {
 			return; // Nothing to merge.
 		}
 		
-		/*
-		 * TODO - Implement properly.
-		 * Merge from oldest to most recent.
-		 * Mark oldest backup as accepted.
-		 * Keep the oldest backup when moving into a new interval. Mark these as accepted.
-		 * Merge backups with newer backups if their previous accepted backup is within the merge interval.
-		 *   Mark as accepted otherwise.
-		 *   Merge can happen as soon as the next accepted backup is detected, since that's the merge target.
-		 *     Keep in mind that the most recent backup (that's just been made) might violate merging intervals.
-		 *       Always keep the most recent backup, such that we can merge stuff into it.
-		 */
-		
 		// Apply merging per interval, going from oldest to latest.
 		int intervalIndex = lastIntervalIndex;
 		BoundedInterval interval = intervals.get(intervalIndex);
-		int lastAcceptedBackupIndex = -1; // The last backup within the last interval is included.
-		long lastAcceptedBackupTime = sortedBackups.get(0).getCreationTime();
-		System.out.println("Interval start: " + intervalStartTime + ", end: " + intervalEndTime);
+		int lastAcceptedBackupIndex = -1;
+		long lastAcceptedBackupTime = -1;
 		for(int i = 0; i < sortedBackups.size(); i++) {
 			BackupPart backup = sortedBackups.get(i);
-			System.out.println("Handling backup part: " + backup.getCreationTime());
 			accepted: {
 				
 				// Detect entry of the next interval.
@@ -266,33 +251,22 @@ public class SimpleBackup implements Backup {
 						intervalIndex--;
 						interval = intervals.get(intervalIndex);
 						intervalStartTime += 1000L * interval.getDuration();
-						System.out.println("\tSelected interval index: " + intervalIndex
-								+ ", start: " + intervalStartTime);
 					} while(backup.getCreationTime() > intervalStartTime);
 					
 					// The last backup of a new interval is always included.
 					break accepted;
 				}
 				
-				// Detect valid intervals.
-				System.out.println("\tCreation time: " + backup.getCreationTime()
-						+ ", lastAccepted: " + lastAcceptedBackupTime
-						+ ", diff: " + (backup.getCreationTime() - lastAcceptedBackupTime)
-						+ ", interval: " + interval.getInterval());
+				// Detect valid intervals, accepting the most recent and oldest backup as well.
 				if(interval.getInterval() == -1
-						|| (backup.getCreationTime() - lastAcceptedBackupTime) / 1000 >= interval.getInterval()) {
-					break accepted;
-				}
-				
-				// Always accept most recent backup. We might want to merge to this.
-				if(i == sortedBackups.size() - 1) {
+						|| (backup.getCreationTime() - lastAcceptedBackupTime) / 1000 >= interval.getInterval()
+						|| i == sortedBackups.size() - 1 || i == 0) {
 					break accepted;
 				}
 				
 				// Current backup has a too small interval.
-				continue; // Will be merged with the next accepted backup, if there is any.
+				continue; // Will be merged with the next accepted backup.
 			}
-			System.out.println("\tBackup part accepted: " + backup.getCreationTime());
 			
 			// Backup is accepted. Merge unaccepted backups if they are available.
 			if(lastAcceptedBackupIndex != i - 1) {
@@ -300,7 +274,6 @@ public class SimpleBackup implements Backup {
 				// Create the new backup part.
 				long backupTime = backup.getCreationTime();
 				// TODO - Backup with this time/name already exists. Overwrite or is subtracting a second acceptable?
-				System.out.println("\tCreating new backup part at: " + backupTime + " (- 1000).");
 				BackupPart newBackup = this.backupPartFactory.createNew(backupTime - 1000);
 				
 				// Merge the backups.
