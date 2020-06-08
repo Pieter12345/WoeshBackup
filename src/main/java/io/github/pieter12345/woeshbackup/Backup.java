@@ -34,6 +34,20 @@ public interface Backup {
 	public void merge(long beforeDate) throws BackupException, InterruptedException;
 	
 	/**
+	 * Merges backups based on their interval compared to the given intervals.
+	 * The maximum backup age is the currentTime plus the sum of interval durations. Each interval will apply for its
+	 * corresponding duration. Backup parts are iterated from oldest to newest, merging a backup with a more recent one
+	 * if it has an interval smaller than the maximum allowed interval in its duration.
+	 * The most recent backup is never 'merged' since there is no more recent backup to merge it with.
+	 * @param intervals - The intervals, ordered from most recent to oldest.
+	 * @param currentTime - The time to use as current time. It can be feasible to keep this the same for multiple
+	 * backups in a bulk operation, but this is not required.
+	 * @throws BackupException When not all backups were merged successfully.
+	 * @throws InterruptedException When the current Thread is interrupted.
+	 */
+	public void merge(List<BoundedInterval> intervals, long currentTime) throws BackupException, InterruptedException;
+	
+	/**
 	 * Creates a zip file containing the state of the to-backup directory at the given timestamp,
 	 * rounding down to the closest older backup.
 	 * @param beforeDate - The timestamp threshold for restoring.

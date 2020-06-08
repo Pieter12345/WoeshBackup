@@ -20,6 +20,18 @@ autoBackup:
 # The time to keep backups. Example format: 1d12h5m30s. Default: 21d (21 days).
 maxBackupAge: 21d
 
+# Used to set the density of backups per backup age interval. This is a list of lists in format: [[interval1, duration1], [interval2, duration2], ...].
+# This is used as follows: From now until duration1 time in the past, merge backups such that only one backup per interval1 is kept.
+# Then from duration 1 time in the past until duration2 time in the past, do the same for interval2, etc. The maximum backup age is the sum of supplied durations.
+# Supply an interval of -1 to never merge in that backup age interval, and supply a duration of -1 to indicate that that duration should be forever.
+# Intervals and durations are either in seconds or in time format (e.g. 1d12h5m30s). Default: Never merge forever ([[-1, -1]]).
+mergeIntervals: [
+    [1h, 2w], # Keep one backup per hour for 2 weeks.
+    [2h, 30d], # Keep one backup per 2 hours for the next 30 days.
+    [1d, 1y], # Keep one backup per day for the next year.
+    [1y, -1] # Keep one backup per year until forever.
+]
+
 # If less than this amount of disk space is available, no backups will start. The value is in MBs.
 dontBackupIfLessThanThisSpaceIsAvailableInMB: 5000
 

@@ -27,6 +27,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import io.github.pieter12345.woeshbackup.Backup;
+import io.github.pieter12345.woeshbackup.BoundedInterval;
 import io.github.pieter12345.woeshbackup.SimpleBackup;
 import io.github.pieter12345.woeshbackup.ZipFileBackupPartFactory;
 import io.github.pieter12345.woeshbackup.api.WoeshBackupAPI;
@@ -50,10 +51,10 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	private BukkitTask backupIntervalTask = null;
 	private long lastBackupStartTime = -1; // [ms].
 	private int backupIntervalSeconds = -1; // [sec].
-	private long timeToKeepBackups; // [ms].
+	private List<BoundedInterval> mergeIntervals; // {{interval [sec], duration [sec]}, ...}.
 	private int minDiskSpaceToAllowBackup; // [MB].
 	public boolean debugEnabled;
-
+	
 	private final WoeshBackupCommandExecutor commandExecutor;
 	private final WoeshBackupTabCompleter tabCompleter;
 	private final Logger logger;
@@ -198,14 +199,14 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		
 		// Return if backups are still/already in progress.
 		if(this.backupInProgress()) {
-			WoeshBackupPlugin.this.logger.warning("Skipping backup because a backup is already in progress.");
+			this.logger.warning("Skipping backup because a backup is already in progress.");
 			return;
 		}
 		
 		// Create the backup directory if it does not exist.
 		if(!this.backupDir.isDirectory()) {
 			if(!this.backupDir.mkdir()) {
-				WoeshBackupPlugin.this.logger.severe("Failed to create the main backup directory at: "
+				this.logger.severe("Failed to create the main backup directory at: "
 						+ this.backupDir.getAbsolutePath() + ". Skipping backup.");
 				return;
 			}
@@ -214,7 +215,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Abort backup if there is less than some minimum amount free disk space.
 		long availableDiskSpace = this.backupDir.getUsableSpace();
 		if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
-			WoeshBackupPlugin.this.logger.severe("Skipping backups since less than "
+			this.logger.severe("Skipping backups since less than "
 					+ this.minDiskSpaceToAllowBackup + "MB of free disk space was found("
 					+ (availableDiskSpace / 1000000) + "MB).");
 			return;
@@ -233,7 +234,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		this.addBackupsForWorlds();
 		
 		// Update all backups on a separate thread.
-		final long mergeBeforeDate = currentTime - this.timeToKeepBackups;
+		final List<BoundedInterval> mergeIntervals = new ArrayList<>(this.mergeIntervals); // Clone for thread safety.
 		this.backupThread = new Thread() {
 			@Override
 			public void run() {
@@ -284,7 +285,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 						
 						// Merge (and remove) old backups.
 						try {
-							backup.merge(mergeBeforeDate);
+							backup.merge(mergeIntervals, currentTime);
 						} catch (BackupException e) {
 							WoeshBackupPlugin.this.logger.severe("Merging backups failed for backup: "
 									+ backup.getToBackupDir().getName() + ". Here's the stacktrace:\n"
@@ -334,8 +335,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 				try {
 					WoeshBackupPlugin.this.storeLastBackupTime();
 				} catch (IOException e) {
-					WoeshBackupPlugin.this.logger.severe(
-							"An IOException occured while storing the last backup date.");
+					WoeshBackupPlugin.this.logger.severe("An IOException occured while storing the last backup date.");
 				}
 				
 				// Send feedback since the backups are done.
@@ -459,12 +459,43 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 					+ backupIntervalSeconds + ". Using default value: 3600 [sec].");
 			backupIntervalSeconds = 3600;
 		}
-		this.timeToKeepBackups = 1000L * this.getConfigTimeSeconds("maxBackupAge", 1814400);
-		if(this.timeToKeepBackups <= 1000 * 3600) {
-			this.logger.warning("Invalid config entry found: maxBackupAge has to be >= 3600 [sec]. Found: "
-					+ (this.timeToKeepBackups / 1000) + ". Using default value: 1814400 [sec] (21 days).");
-			this.timeToKeepBackups = 1000L * 1814400;
+		
+		// Read and valiate merge intervals.
+		List<?> mergeIntervalsRaw = this.getConfig().getList("mergeIntervals");
+		List<BoundedInterval> mergeIntervals = new ArrayList<>();
+		if(mergeIntervalsRaw == null) {
+			this.logger.warning("No mergeIntervals supplied in the configuration. This means that backups will never"
+					+ " be merged and that more and more disk space will be used. You can put merge interval with"
+					+ " interval -1 and duration -1 to never backup forever and suppress this warning.");
+		} else {
+			for(Object mergeIntervalRaw : mergeIntervals) {
+				if(!(mergeIntervalRaw instanceof List<?>)) {
+					this.logger.warning("Invalid config entry found: mergeIntervals has to be a list of lists,"
+							+ " where each list is in format: [interval (sec), duration (sec)].");
+					mergeIntervals.add(new BoundedInterval(-1, -1)); // Safe fallback. Don't merge after this.
+					break;
+				}
+				Object intervalRaw = ((List<?>) mergeIntervalRaw).get(0);
+				Object durationRaw = ((List<?>) mergeIntervalRaw).get(1);
+				Long interval = this.getTimeSeconds(intervalRaw);
+				Long duration = this.getTimeSeconds(durationRaw);
+				if(interval == null || interval < -1) {
+					this.logger.warning("Invalid config entry found in mergeIntervals: interval has to be a"
+							+ " valid time representation greater or equal to -1. Found: " + intervalRaw);
+					mergeIntervals.add(new BoundedInterval(-1, -1)); // Safe fallback. Don't merge after this.
+					break;
+				}
+				if(duration == null || duration < -1) {
+					this.logger.warning("Invalid config entry found in mergeIntervals: duration has to be a"
+							+ " valid time representation greater or equal to -1. Found: " + durationRaw);
+					mergeIntervals.add(new BoundedInterval(-1, -1)); // Safe fallback. Don't merge after this.
+					break;
+				}
+				mergeIntervals.add(new BoundedInterval(interval, duration));
+			}
 		}
+		this.mergeIntervals = mergeIntervals;
+		
 		this.minDiskSpaceToAllowBackup = this.getConfig().getInt("dontBackupIfLessThanThisSpaceIsAvailableInMB", 5000);
 		if(this.minDiskSpaceToAllowBackup < 1000) {
 			this.logger.warning(
@@ -531,12 +562,28 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Get object from the configuration.
 		Object obj = this.getConfig().get(configPath);
 		
-		// Return the default if no value was present in the configuration.
+		// Convert the object.
+		Long time = this.getTimeSeconds(obj);
+		
+		// Return the result.
+		return (time == null ? def : time);
+	}
+	
+	/**
+	 * Gets the time in seconds from the given {@link Object}. Accepted values:
+	 * {@link Integer}, {@link Long}, {@link Float}/{@link Double} (will be rounded to long),
+	 * {@link String} in format (\\d+[dhms])+ (e.g. "1d12h5m30s" or "5d").
+	 * @param obj - The object to convert.
+	 * @return The time in seconds or {@code null} if the object was not in a valid format.
+	 */
+	private Long getTimeSeconds(Object obj) {
+		
+		// Return null if null is given.
 		if(obj == null) {
-			return def;
+			return null;
 		}
 		
-		// Return an int if a number was found. This may be rounded and/or truncated.
+		// Return a long if a number was found. This may be rounded and/or truncated.
 		if(obj instanceof Number) {
 			return ((Number) obj).longValue();
 		}
@@ -545,7 +592,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		if(obj instanceof String) {
 			String str = (String) obj;
 			if(str.isEmpty()) {
-				return def;
+				return null;
 			}
 			long time = 0;
 			int startInd = 0;
@@ -555,26 +602,28 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 					continue; // Skip numbers.
 				}
 				if(startInd == i) {
-					return def; // Invalid time identifier.
+					return null; // Invalid time identifier.
 				}
 				long num = Long.parseLong(str.substring(startInd, i));
 				switch(ch) {
+					case 'y': time += num * 60 * 60 * 24 * 365; break;
+					case 'w': time += num * 60 * 60 * 24 * 7; break;
 					case 'd': time += num * 60 * 60 * 24; break;
 					case 'h': time += num * 60 * 60; break;
 					case 'm': time += num * 60; break;
 					case 's': time += num; break;
-					default: return def; // Invalid time identifier.
+					default: return null; // Invalid time identifier.
 				}
 				startInd = i + 1; // Start of the next number.
 			}
 			if(startInd != str.length()) {
-				return def; // Trailing number(s).
+				return null; // Trailing number(s).
 			}
 			return time;
 		}
 		
 		// Return default for unknown values.
-		return def;
+		return null;
 	}
 	
 	@Override

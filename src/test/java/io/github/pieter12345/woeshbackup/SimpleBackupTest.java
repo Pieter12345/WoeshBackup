@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Logger;
 
 import org.junit.jupiter.api.AfterAll;
@@ -289,6 +290,72 @@ class SimpleBackupTest {
 	}
 	
 	/**
+	 * Tests that {@link SimpleBackup#merge(List, long)} properly merges and removes backup parts as expected.
+	 * Also tests that the merged backup parts will be deleted afterwards.
+	 * @throws Exception
+	 */
+	@Test
+	void testIntervalMerge() throws Exception {
+		
+		// Create mocked backend.
+		BackupPart backupPart1 = mockBackupPart(10000L * 1000L, null, null);
+		BackupPart backupPart2 = mockBackupPart(20000L * 1000L, null, null);
+		BackupPart backupPart3 = mockBackupPart(30000L * 1000L, null, null);
+		BackupPart backupPart4 = mockBackupPart(40000L * 1000L, null, null);
+		BackupPart backupPart5 = mockBackupPart(50000L * 1000L, null, null);
+		BackupPart backupPart6 = mockBackupPart(60000L * 1000L, null, null);
+		BackupPart newBackupPart1 = mock(BackupPart.class);
+		BackupPart newBackupPart2 = mock(BackupPart.class);
+		BackupPartFactory backupPartFactory = mockBackupPartFactory(
+				Arrays.asList(newBackupPart1, newBackupPart2),
+				Arrays.asList(backupPart1, backupPart2, backupPart3, backupPart4, backupPart5, backupPart6));
+		
+		// Create backup.
+		Backup backup = new SimpleBackup(TO_BACKUP_DIR, backupPartFactory, mock(Logger.class));
+		
+		// Perform the merge with intervals such that backups {2, 3} and {4, 5} will be combined.
+		List<BoundedInterval> mergeIntervals = Arrays.asList(
+				new BoundedInterval(30000L, 95000L), // Covers 55000 - 150000, accept 6.
+				new BoundedInterval(20000L, 50000L), // Covers 5000 - 55000, accept 1, merging 2 into 3, merge 4 into 5.
+				new BoundedInterval(100000L, -1) // Covers 0 - 5000.
+			);
+		backup.merge(mergeIntervals, 150000L * 1000L);
+		
+		// Verify that 2 backup parts were requested from the factory.
+		verify(backupPartFactory, times(2)).createNew(anyLong());
+		
+		// Verify that no changes were added to the new backup parts without using merge().
+		verify(newBackupPart1, never()).addAddition(anyString(), any(File.class));
+		verify(newBackupPart1, never()).addModification(anyString(), any(File.class));
+		verify(newBackupPart1, never()).addRemoval(anyString());
+		verify(newBackupPart1, times(2)).merge(any(BackupPart.class));
+		verify(newBackupPart2, never()).addAddition(anyString(), any(File.class));
+		verify(newBackupPart2, never()).addModification(anyString(), any(File.class));
+		verify(newBackupPart2, never()).addRemoval(anyString());
+		verify(newBackupPart2, times(2)).merge(any(BackupPart.class));
+		
+		// Verify that the backups were merged in the expected order.
+		InOrder inOrder1 = inOrder(newBackupPart1);
+		inOrder1.verify(newBackupPart1).merge(backupPart3);
+		inOrder1.verify(newBackupPart1).merge(backupPart2);
+		InOrder inOrder2 = inOrder(newBackupPart2);
+		inOrder2.verify(newBackupPart2).merge(backupPart5);
+		inOrder2.verify(newBackupPart2).merge(backupPart4);
+		
+		// Verify that the merged backups were deleted and the others were not.
+		verify(backupPart1, never()).delete();
+		verify(backupPart2, times(1)).delete();
+		verify(backupPart3, times(1)).delete();
+		verify(backupPart4, times(1)).delete();
+		verify(backupPart5, times(1)).delete();
+		verify(backupPart6, never()).delete();
+		
+		// Verify that the new backup parts were closed.
+		verify(newBackupPart1, times(1)).close();
+		verify(newBackupPart2, times(1)).close();
+	}
+	
+	/**
 	 * Tests that {@link SimpleBackup#restore(long, BackupRestoreWriterFactory)} on a single backup part does include
 	 * file and directory additions while not including file and directory removals.
 	 * @throws Exception
@@ -363,6 +430,52 @@ class SimpleBackupTest {
 		
 		// Make BackupPartFactory.createNew(long) return the given mocked backup part with the proper creation time.
 		doAnswer((invocation) -> {
+			doReturn(invocation.getArgument(0)).when(newBackupPart).getCreationTime();
+			return newBackupPart;
+		}).when(backupPartFactory).createNew(anyLong());
+		
+		// Make BackupPartFactory.readAllBefore(beforeDate) return all backups selected by the beforeDate.
+		doAnswer((invocation) -> {
+			long beforeDate = invocation.getArgument(0);
+			List<BackupPart> ret = new ArrayList<BackupPart>();
+			if(existingBackups != null) {
+				for(BackupPart backup : existingBackups) {
+					if(beforeDate < 0 || backup.getCreationTime() < beforeDate) {
+						ret.add(backup);
+					}
+				}
+			}
+			ret.sort((b1, b2) -> Long.compare(b1.getCreationTime(), b2.getCreationTime()));
+			return ret;
+		}).when(backupPartFactory).readAllBefore(anyLong());
+		
+		// Can't determine usable disk space.
+		doReturn(-1L).when(backupPartFactory).getFreeUsableSpace();
+		
+		// Return the factory.
+		return backupPartFactory;
+	}
+	
+	/**
+	 * Creates a {@link BackupPartFactory} mock.
+	 * @param newBackupParts - The BackupParts to return on {@link BackupPartFactory#createNew(long)} in the given
+	 * order.
+	 * The passed long will be set as return value for {@link BackupPart#getCreationTime()}.
+	 * @param existingBackups - A list of existing backups to be returned by
+	 * {@link BackupPartFactory#readAllBefore(long)}. They are selected based on the passed beforeDate.
+	 * @return The mocked {@link BackupPartFactory}.
+	 * @throws IOException
+	 */
+	static BackupPartFactory mockBackupPartFactory(List<BackupPart> newBackupParts, List<BackupPart> existingBackups)
+			throws IOException {
+
+		// Create mocked backup part factory.
+		BackupPartFactory backupPartFactory = mock(BackupPartFactory.class);
+		
+		// Make BackupPartFactory.createNew(long) return the given mocked backup part with the proper creation time.
+		final AtomicInteger callCount = new AtomicInteger(0);
+		doAnswer((invocation) -> {
+			BackupPart newBackupPart = newBackupParts.get(callCount.getAndAdd(1));
 			doReturn(invocation.getArgument(0)).when(newBackupPart).getCreationTime();
 			return newBackupPart;
 		}).when(backupPartFactory).createNew(anyLong());

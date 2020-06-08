@@ -200,6 +200,152 @@ public class SimpleBackup implements Backup {
 	}
 	
 	@Override
+	public void merge(List<BoundedInterval> intervals, long currentTime) throws BackupException, InterruptedException {
+		
+		// Return if no intervals were given.
+		if(intervals.size() == 0) {
+			return;
+		}
+		
+		// Calculate the start and end time of the last interval (start >= end).
+		long intervalStartTime = currentTime;
+		long intervalEndTime = currentTime;
+		int lastIntervalIndex = intervals.size() - 1;
+		for(int i = 0; i < intervals.size(); i++) {
+			BoundedInterval interval = intervals.get(i);
+			lastIntervalIndex = i;
+			intervalStartTime = intervalEndTime;
+			if(interval.getDuration() <= -1) {
+				intervalEndTime = 0; // Infinite interval is interpreted as timestamp 0.
+				break;
+			} else {
+				intervalEndTime -= 1000L * interval.getDuration();
+			}
+			System.out.println(">Interval start: " + intervalStartTime + ", end: " + intervalEndTime);
+		}
+		
+		// Merge backups older than the last interval.
+		if(intervalEndTime != 0) {
+			this.merge(intervalEndTime);
+		}
+		
+		// Read the backup parts.
+		List<BackupPart> sortedBackups = this.readBackupParts();
+		if(sortedBackups.isEmpty()) {
+			return; // Nothing to merge.
+		}
+		
+		/*
+		 * TODO - Implement properly.
+		 * Merge from oldest to most recent.
+		 * Mark oldest backup as accepted.
+		 * Keep the oldest backup when moving into a new interval. Mark these as accepted.
+		 * Merge backups with newer backups if their previous accepted backup is within the merge interval.
+		 *   Mark as accepted otherwise.
+		 *   Merge can happen as soon as the next accepted backup is detected, since that's the merge target.
+		 *     Keep in mind that the most recent backup (that's just been made) might violate merging intervals.
+		 *       Always keep the most recent backup, such that we can merge stuff into it.
+		 */
+		
+		// Apply merging per interval, going from oldest to latest.
+		int intervalIndex = lastIntervalIndex;
+		BoundedInterval interval = intervals.get(intervalIndex);
+		int lastAcceptedBackupIndex = -1; // The last backup within the last interval is included.
+		long lastAcceptedBackupTime = sortedBackups.get(0).getCreationTime();
+		System.out.println("Interval start: " + intervalStartTime + ", end: " + intervalEndTime);
+		for(int i = 0; i < sortedBackups.size(); i++) {
+			BackupPart backup = sortedBackups.get(i);
+			System.out.println("Handling backup part: " + backup.getCreationTime());
+			accepted: {
+				
+				// Detect entry of the next interval.
+				if(backup.getCreationTime() > intervalStartTime) {
+					
+					// Update interval to the interval containing the current backup.
+					do {
+						intervalIndex--;
+						interval = intervals.get(intervalIndex);
+						intervalStartTime += 1000L * interval.getDuration();
+						System.out.println("\tSelected interval index: " + intervalIndex
+								+ ", start: " + intervalStartTime);
+					} while(backup.getCreationTime() > intervalStartTime);
+					
+					// The last backup of a new interval is always included.
+					break accepted;
+				}
+				
+				// Detect valid intervals.
+				System.out.println("\tCreation time: " + backup.getCreationTime()
+						+ ", lastAccepted: " + lastAcceptedBackupTime
+						+ ", diff: " + (backup.getCreationTime() - lastAcceptedBackupTime)
+						+ ", interval: " + interval.getInterval());
+				if(interval.getInterval() == -1
+						|| (backup.getCreationTime() - lastAcceptedBackupTime) / 1000 >= interval.getInterval()) {
+					break accepted;
+				}
+				
+				// Always accept most recent backup. We might want to merge to this.
+				if(i == sortedBackups.size() - 1) {
+					break accepted;
+				}
+				
+				// Current backup has a too small interval.
+				continue; // Will be merged with the next accepted backup, if there is any.
+			}
+			System.out.println("\tBackup part accepted: " + backup.getCreationTime());
+			
+			// Backup is accepted. Merge unaccepted backups if they are available.
+			if(lastAcceptedBackupIndex != i - 1) {
+				
+				// Create the new backup part.
+				long backupTime = backup.getCreationTime();
+				// TODO - Backup with this time/name already exists. Overwrite or is subtracting a second acceptable?
+				System.out.println("\tCreating new backup part at: " + backupTime + " (- 1000).");
+				BackupPart newBackup = this.backupPartFactory.createNew(backupTime - 1000);
+				
+				// Merge the backups.
+				for(int j = i; j > lastAcceptedBackupIndex; j--) {
+					try {
+						newBackup.merge(sortedBackups.get(j));
+					} catch (IOException e) {
+						throw new BackupException("Failed to merge backup parts.", e);
+					} catch (CorruptedBackupException e) {
+						throw new BackupException("Failed to merge backup part with corrupted backup part: "
+								+ this.toBackupDir.getName() + "/" + e.getBackup().getName(), e);
+					}
+				}
+				try {
+					newBackup.close();
+				} catch (IOException e) {
+					try {
+						newBackup.delete();
+					} catch (IOException e1) {
+						this.logger.severe("Failed to remove a failed merge backup. Here's the stacktrace:\n"
+								+ Utils.getStacktrace(e1));
+						throw new BackupException(
+								"Failed to close the merged backup. It could also not be removed.", e);
+					}
+					throw new BackupException("Failed to close the merged backup.", e);
+				}
+				
+				// Remove the merged backups.
+				for(int j = i; j > lastAcceptedBackupIndex; j--) {
+					try {
+						sortedBackups.get(j).delete();
+					} catch (IOException e) {
+						this.logger.severe(
+								"Failed to remove a merged backup. Here's the stacktrace:\n" + Utils.getStacktrace(e));
+					}
+				}
+			}
+			
+			// Update last accepted backup data.
+			lastAcceptedBackupIndex = i;
+			lastAcceptedBackupTime = sortedBackups.get(lastAcceptedBackupIndex).getCreationTime();
+		}
+	}
+	
+	@Override
 	public void restore(long beforeDate, BackupRestoreWriterFactory restoreWriterFactory)
 			throws BackupException, InterruptedException {
 		
