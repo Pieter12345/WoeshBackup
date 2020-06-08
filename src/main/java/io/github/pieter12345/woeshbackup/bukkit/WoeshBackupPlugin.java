@@ -454,7 +454,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		String backupDirPath = this.getConfig().getString("backupDirPath", "woeshBackups");
 		String snapshotsDirPath = this.getConfig().getString("snapshotsDirPath", "snapshots");
 		int backupIntervalSeconds = (int) this.getConfigTimeSeconds("autoBackup.interval", 3600);
-		if(backupIntervalSeconds <= 60) {
+		if(backupIntervalSeconds < 60) {
 			this.logger.warning("Invalid config entry found: autoBackup.interval has to be >= 60 [sec]. Found: "
 					+ backupIntervalSeconds + ". Using default value: 3600 [sec].");
 			backupIntervalSeconds = 3600;
