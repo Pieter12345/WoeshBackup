@@ -468,7 +468,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 					+ " be merged and that more and more disk space will be used. You can put merge interval with"
 					+ " interval -1 and duration -1 to never backup forever and suppress this warning.");
 		} else {
-			for(Object mergeIntervalRaw : mergeIntervals) {
+			for(Object mergeIntervalRaw : mergeIntervalsRaw) {
 				if(!(mergeIntervalRaw instanceof List<?>)) {
 					this.logger.warning("Invalid config entry found: mergeIntervals has to be a list of lists,"
 							+ " where each list is in format: [interval (sec), duration (sec)].");
