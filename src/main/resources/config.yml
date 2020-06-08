@@ -17,9 +17,6 @@ autoBackup:
     # If enabled is true, a backup will be made every this amount of time. Example format: 1d12h5m30s. Default: 1h (1 hour).
     interval: 1h
 
-# The time to keep backups. Example format: 1d12h5m30s. Default: 21d (21 days).
-maxBackupAge: 21d
-
 # Used to set the density of backups per backup age interval. This is a list of lists in format: [[interval1, duration1], [interval2, duration2], ...].
 # This is used as follows: From now until duration1 time in the past, merge backups such that only one backup per interval1 is kept.
 # Then from duration 1 time in the past until duration2 time in the past, do the same for interval2, etc. The maximum backup age is the sum of supplied durations.
