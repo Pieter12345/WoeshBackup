@@ -294,7 +294,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 					
 						// Perform the backup.
 						try {
-							backup.backup();
+							backup.backup(currentTime);
 						} catch (InterruptedException e) {
 							throw e;
 						} catch (Exception e) {

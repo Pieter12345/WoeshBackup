@@ -69,7 +69,7 @@ public class SimpleBackup implements Backup {
 	}
 	
 	@Override
-	public void backup() throws BackupException, InterruptedException {
+	public void backup(long currentTime) throws BackupException, InterruptedException {
 		
 		// Throw an Exception if the directory to backup doesn't exist.
 		if(!this.toBackupDir.isDirectory()) {
@@ -83,7 +83,6 @@ public class SimpleBackup implements Backup {
 		Map<String, BackupPart> stateMap = this.getBackupState(sortedBackups);
 		
 		// Create the new backup part.
-		long currentTime = System.currentTimeMillis();
 		BackupPart backup = this.backupPartFactory.createNew(currentTime);
 		
 		// Loop over all existing files and add them to the backup if they are not in the current backup state.

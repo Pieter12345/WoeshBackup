@@ -24,7 +24,8 @@ autoBackup:
 # Backups older than the sum of durations are merged, unless a duration is -1.
 # Intervals and durations are either in seconds or in time format (e.g. 1d12h5m30s). Default: Never merge forever ([[-1, -1]]).
 mergeIntervals: [
-    [1h, 2w], # Keep one backup per hour for 2 weeks.
+    [-1, 1h], # Don't remove any backups made in the past hour.
+    [1h, 2w], # Keep one backup per hour for the next 2 weeks.
     [2h, 30d], # Keep one backup per 2 hours for the next 30 days.
     [1d, 1y], # Keep one backup per day for the next year.
     [1y, -1] # Keep one backup per year until forever.

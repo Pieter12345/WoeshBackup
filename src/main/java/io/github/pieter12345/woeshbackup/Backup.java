@@ -20,7 +20,19 @@ public interface Backup {
 	 * @throws BackupException When the backup part was not created successfully.
 	 * @throws InterruptedException When the current Thread is interrupted.
 	 */
-	public void backup() throws BackupException, InterruptedException;
+	public default void backup() throws BackupException, InterruptedException {
+		this.backup(System.currentTimeMillis());
+	}
+	
+	/**
+	 * Creates a new backup part containing the differences between the current to-backup directory state and
+	 * the state of the backup.
+	 * @param currentTime - The time at which the backup has started. This can be used to maintain a constant backup
+	 * time accross multiple backups within one backup task.
+	 * @throws BackupException When the backup part was not created successfully.
+	 * @throws InterruptedException When the current Thread is interrupted.
+	 */
+	public void backup(long currentTime) throws BackupException, InterruptedException;
 	
 	/**
 	 * Merges all backups dated before the given timestamp, forming a new backup with the timestamp of the latest
