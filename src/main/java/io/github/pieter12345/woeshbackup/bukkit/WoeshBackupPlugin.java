@@ -131,6 +131,14 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 			}
 		}
 		
+		// Give feedback about the backup interval.
+		if(autoBackup) {
+			this.logger.info(String.format(
+					"WoeshBackup will automatically backup every %d minutes.", (this.backupIntervalSeconds / 60)));
+		} else {
+			this.logger.info("Automatic backups are disabled.");
+		}
+		
 		// Print disk space feedback.
 		this.logger.info("Believed free disk space: " + (this.backupDir.getUsableSpace() / 1000000) + "MB.");
 	}
@@ -543,10 +551,6 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 				this.startBackupIntervalTask();
 			}
 		}
-		
-		// Give feedback about the backup interval.
-		this.logger.info(String.format(
-				"WoeshBackup will now backup every %d minutes.", (this.backupIntervalSeconds / 60)));
 	}
 	
 	/**
