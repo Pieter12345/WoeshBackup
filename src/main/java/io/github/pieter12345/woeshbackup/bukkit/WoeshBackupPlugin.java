@@ -662,6 +662,9 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		iterateLoop:
 		for(World world : Bukkit.getWorlds()) {
 			File toBackupWorldDir = world.getWorldFolder().getAbsoluteFile();
+			if(toBackupWorldDir.getName().equals(".")) {
+				toBackupWorldDir = toBackupWorldDir.getParentFile();
+			}
 			for(Backup backup : this.backups.keySet()) {
 				if(backup.getToBackupDir().equals(toBackupWorldDir)) {
 					continue iterateLoop;
