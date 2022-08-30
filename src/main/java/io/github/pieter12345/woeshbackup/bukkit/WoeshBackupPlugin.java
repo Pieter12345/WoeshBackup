@@ -461,6 +461,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		// Read and validate values from the config.
 		String backupDirPath = this.getConfig().getString("backupDirPath", "woeshBackups");
 		String snapshotsDirPath = this.getConfig().getString("snapshotsDirPath", "snapshots");
+		boolean autoBackup = this.getConfig().getBoolean("autoBackup.enabled", true);
 		int backupIntervalSeconds = (int) this.getConfigTimeSeconds("autoBackup.interval", 3600);
 		if(backupIntervalSeconds < 60) {
 			this.logger.warning("Invalid config entry found: autoBackup.interval has to be >= 60 [sec]. Found: "
@@ -541,13 +542,13 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 			}
 		}
 		
-		// Restart the backup task if the interval has changed.
-		if(backupIntervalSeconds != this.backupIntervalSeconds) {
+		// Start, stop or restart the backup task if the enabled state and/or interval has changed.
+		if(backupIntervalSeconds != this.backupIntervalSeconds || this.backupIntervalTaskActive() != autoBackup) {
 			this.backupIntervalSeconds = backupIntervalSeconds;
-			
-			// Cancel and restart the current task if it exists.
 			if(this.backupIntervalTaskActive()) {
 				this.stopBackupIntervalTask();
+			}
+			if(autoBackup) {
 				this.startBackupIntervalTask();
 			}
 		}
