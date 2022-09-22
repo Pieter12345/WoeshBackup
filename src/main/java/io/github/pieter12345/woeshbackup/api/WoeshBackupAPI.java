@@ -31,7 +31,15 @@ public interface WoeshBackupAPI {
 	/**
 	 * Updates all {@link Backup}s. Does nothing if a backup is already in progress.
 	 */
-	public void performBackup();
+	public default void performBackup() {
+		this.performBackup(false);
+	}
+	
+	/**
+	 * Updates all {@link Backup}s. Does nothing if a backup is already in progress.
+	 * @param bypassDiskSpaceLimit - When {@code true}, bypasses the disk space limit as set in the configuration.
+	 */
+	public void performBackup(boolean bypassDiskSpaceLimit);
 	
 	/**
 	 * Checks if a backup is currently in progress.

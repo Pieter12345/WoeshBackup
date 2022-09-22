@@ -203,7 +203,7 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 	}
 	
 	@Override
-	public void performBackup() {
+	public void performBackup(boolean bypassDiskSpaceLimit) {
 		
 		// Return if backups are still/already in progress.
 		if(this.backupInProgress()) {
@@ -221,12 +221,14 @@ public class WoeshBackupPlugin extends JavaPlugin implements WoeshBackupAPI {
 		}
 		
 		// Abort backup if there is less than some minimum amount free disk space.
-		long availableDiskSpace = this.backupDir.getUsableSpace();
-		if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
-			this.logger.severe("Skipping backups since less than "
-					+ this.minDiskSpaceToAllowBackup + "MB of free disk space was found("
-					+ (availableDiskSpace / 1000000) + "MB).");
-			return;
+		if(!bypassDiskSpaceLimit) {
+			long availableDiskSpace = this.backupDir.getUsableSpace();
+			if(availableDiskSpace < this.minDiskSpaceToAllowBackup * 1000000L) {
+				this.logger.severe("Skipping backups since less than "
+						+ this.minDiskSpaceToAllowBackup + "MB of free disk space was found("
+						+ (availableDiskSpace / 1000000) + "MB).");
+				return;
+			}
 		}
 		
 		// Give feedback about starting the backup.

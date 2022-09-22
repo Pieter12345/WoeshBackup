@@ -24,11 +24,11 @@ import io.github.pieter12345.woeshbackup.utils.Utils;
  * @author P.J.S. Kools
  */
 public class WoeshBackupCommandExecutor implements CommandExecutor {
-
+	
 	private final WoeshBackupAPI api;
 	private final Plugin plugin;
 	private final Logger logger;
-
+	
 	private static final String PREFIX_RAW =
 			ChatColor.GOLD + "[" + ChatColor.DARK_AQUA + "WoeshBackup" + ChatColor.GOLD + "]";
 	private static final String PREFIX_INFO = PREFIX_RAW + ChatColor.GREEN + " ";
@@ -105,7 +105,9 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							return true;
 						case "now":
 							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup now &8-&3 Creates a new backup."));
+									"&6/woeshbackup now [--ignorelimit] &8-&3 Creates a new backup."
+									+ " The \"--ignorelimit\" argument can be used to bypass the minimum disk space"
+									+ " requirement set in the configuration."));
 							return true;
 						case "on":
 							sender.sendMessage(PREFIX_INFO + colorize(
@@ -148,13 +150,26 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 			}
 			case "now": {
 				
-				// "/woeshbackup now".
-				if(args.length == 1) {
+				// "/woeshbackup now [--ignorelimit]".
+				if(args.length == 1 || args.length == 2) {
 					
 					// Check for permission.
 					if(!sender.hasPermission("woeshbackup.backupnow")) {
 						sender.sendMessage(NO_PERMS_MSG);
 						return true;
+					}
+					
+					// Get optional "--ignorelimit" argument.
+					boolean bypassDiskSpaceLimit;
+					if(args.length == 2) {
+						if(args[1].toLowerCase().equals("--ignorelimit")) {
+							bypassDiskSpaceLimit = true;
+						} else {
+							sender.sendMessage(PREFIX_ERROR + "Unknown argument: " + args[1]);
+							return true;
+						}
+					} else {
+						bypassDiskSpaceLimit = false;
 					}
 					
 					// Return if a backup is running already.
@@ -170,7 +185,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 					}
 					
 					// Perform the backup.
-					this.api.performBackup();
+					this.api.performBackup(bypassDiskSpaceLimit);
 					
 					// Re-enable the task if it existed.
 					if(taskExists) {
