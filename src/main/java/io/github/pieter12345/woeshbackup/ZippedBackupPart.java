@@ -14,6 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import io.github.pieter12345.woeshbackup.exceptions.CorruptedBackupException;
 
@@ -130,32 +131,34 @@ public class ZippedBackupPart implements BackupPart {
 	
 	@Override
 	public void merge(BackupPart backup) throws IOException, CorruptedBackupException {
+		
+		// Get changes map.
+		final Map<String, ChangeType> changesMap = backup.getChanges();
+		
+		// Handle additions based on backup part files.
 		try {
-			final Map<String, ChangeType> changesMap = backup.getChanges();
 			backup.readAll((fileEntry) -> {
 				String relPath = fileEntry.getRelativePath();
+				
+				// Remove change from changes map to mark it as handled and validate change type.
+				ChangeType changeType = changesMap.remove(relPath);
+				if(changeType == null) {
+					throw new CorruptedBackupException(this,
+							"Backup part contains file that does not occur in its changes: " + relPath);
+				} else if(changeType == ChangeType.REMOVAL) {
+					throw new CorruptedBackupException(this,
+							"Backup part contains file that occurs as a removal in its changes: " + relPath);
+				} else if(changeType != ChangeType.ADDITION) {
+					throw new Error("Unsupported change type: " + changeType);
+				}
 				
 				// Skip entries that are already in this backup.
 				if(this.changesMap != null && this.changesMap.containsKey(relPath)) {
 					return;
 				}
 				
-				// Get the change type and add the entry to this backup part.
-				ChangeType changeType = changesMap.get(relPath);
-				if(changeType == null) {
-					throw new CorruptedBackupException(this,
-							"Backup part contains file that does not occur in its changes: " + relPath);
-				}
-				switch(changeType) {
-					case ADDITION:
-						ZippedBackupPart.this.addAddition(relPath, fileEntry.getFileStream());
-						break;
-					case REMOVAL:
-						ZippedBackupPart.this.addRemoval(relPath);
-						break;
-					default:
-						throw new Error("Unsupported change type: " + changeType);
-				}
+				// Add addition entry to this backup part.
+				ZippedBackupPart.this.addAddition(relPath, fileEntry.getFileStream());
 			});
 		} catch (InvocationTargetException e) {
 			if(e.getTargetException() instanceof CorruptedBackupException) {
@@ -167,6 +170,32 @@ public class ZippedBackupPart implements BackupPart {
 			} else {
 				// Should be impossible.
 				throw new RuntimeException(e);
+			}
+		}
+		
+		// Handle removals based on backup part changes.
+		for(Entry<String, ChangeType> changeEntry : changesMap.entrySet()) {
+			ChangeType changeType = changeEntry.getValue();
+			String relPath = changeEntry.getKey();
+			switch(changeType) {
+				case ADDITION: {
+					throw new CorruptedBackupException(this,
+							"Backup part is missing a file that occurs in its changes: " + relPath);
+				}
+				case REMOVAL: {
+					
+					// Skip entries that are already in this backup.
+					if(this.changesMap != null && this.changesMap.containsKey(relPath)) {
+						continue;
+					}
+					
+					// Add removal entry to this backup part.
+					this.addRemoval(relPath);
+					break;
+				}
+				default: {
+					throw new Error("Unsupported change type: " + changeType);
+				}
 			}
 		}
 	}
