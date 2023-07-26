@@ -85,7 +85,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							+ "\n&3    Disables the backup interval task."
 							+ "\n&6  - /woeshbackup diskinfo"
 							+ "\n&3    Displays the total, free and usable disk space."
-							+ "\n&6  - /woeshbackup generatesnapshot <backupName> <date>"
+							+ "\n&6  - /woeshbackup generatesnapshot <backupName> <date> [--ignorelimit]"
 							+ "\n&3    Generates a snapshot for the given backup on the given date."
 							+ "\n&6  - /woeshbackup removesnapshots"
 							+ "\n&3    Removes all generated snapshots."
@@ -123,9 +123,11 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							return true;
 						case "generatesnapshot":
 							sender.sendMessage(PREFIX_INFO + colorize(
-									"&6/woeshbackup generatesnapshot <backupName> <date> &8-&3"
+									"&6/woeshbackup generatesnapshot <backupName> <date> [--ignorelimit] &8-&3"
 									+ " Generates a snapshot for the given backup on the given date."
-									+ " date is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss."));
+									+ " date is in format: yyyy-MM-dd or yyyy-MM-dd-HH-mm-ss."
+									+ " The \"--ignorelimit\" argument can be used to bypass the minimum disk space"
+									+ " requirement set in the configuration."));
 							return true;
 						case "removesnapshots":
 							sender.sendMessage(PREFIX_INFO + colorize(
@@ -315,6 +317,24 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 			}
 			case "generatesnapshot": {
 				
+				// Get and strip optional "--ignorelimit" argument.
+				boolean bypassDiskSpaceLimit = false;
+				for(int i = 0; i < args.length; i++) {
+					if(args[i].toLowerCase().equals("--ignorelimit")) {
+						bypassDiskSpaceLimit = true;
+						String[] newArgs = new String[args.length - 1];
+						int ind = 0;
+						for(int j = 0; j < args.length; j++) {
+							if(j != i) {
+								newArgs[ind] = args[j];
+							}
+							ind++;
+						}
+						args = newArgs;
+						break;
+					}
+				}
+				
 				// Check argument size.
 				if(args.length < 3) {
 					sender.sendMessage(new String[] {
@@ -368,13 +388,15 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 				}
 				
 				// Check if there is at least a user-defined amount of free disk space. Don't restore otherwise.
-				long availableDiskSpace = (this.api.getSnapshotsDir().isDirectory()
-						? this.api.getSnapshotsDir() : this.api.getBackupDir()).getUsableSpace();
-				if(availableDiskSpace < this.api.getMinRequiredDiskSpace() * 1000000L) {
-					sender.sendMessage(PREFIX_ERROR + "Cannot generate snapshots because less than "
-							+ this.api.getMinRequiredDiskSpace() + "MB of free disk space was found("
-							+ (availableDiskSpace / 1000000) + "MB).");
-					return true;
+				if(!bypassDiskSpaceLimit) {
+					long availableDiskSpace = (this.api.getSnapshotsDir().isDirectory()
+							? this.api.getSnapshotsDir() : this.api.getBackupDir()).getUsableSpace();
+					if(availableDiskSpace < this.api.getMinRequiredDiskSpace() * 1000000L) {
+						sender.sendMessage(PREFIX_ERROR + "Cannot generate snapshots because less than "
+								+ this.api.getMinRequiredDiskSpace() + "MB of free disk space was found("
+								+ (availableDiskSpace / 1000000) + "MB).");
+						return true;
+					}
 				}
 				
 				// Print feedback about starting.
