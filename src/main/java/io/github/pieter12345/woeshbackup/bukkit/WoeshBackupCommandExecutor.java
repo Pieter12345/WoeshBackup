@@ -77,7 +77,7 @@ public class WoeshBackupCommandExecutor implements CommandExecutor {
 							+ "\n&3    Displays this page or information about the subcommand."
 							+ "\n&6  - /woeshbackup status"
 							+ "\n&3    Displays the backup status."
-							+ "\n&6  - /woeshbackup now"
+							+ "\n&6  - /woeshbackup now [--ignorelimit]"
 							+ "\n&3    Creates a new backup."
 							+ "\n&6  - /woeshbackup on"
 							+ "\n&3    Enables the backup interval task."
