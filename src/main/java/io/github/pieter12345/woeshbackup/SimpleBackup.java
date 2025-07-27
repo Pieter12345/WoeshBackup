@@ -84,63 +84,71 @@ public class SimpleBackup implements Backup {
 		
 		// Create the new backup part.
 		BackupPart backup = this.backupPartFactory.createNew(currentTime);
-		
-		// Loop over all existing files and add them to the backup if they are not in the current backup state.
-		final int toBackupDirPathLength = this.toBackupDir.getAbsolutePath().length() + 1; // Includes ending separator.
-		FileIterator it = new FileIterator(this.toBackupDir, this.ignorePaths);
-		while(it.hasNext()) {
-			File file = it.next();
-			String relPath = file.getAbsolutePath().substring(toBackupDirPathLength)
-					+ (file.isDirectory() ? File.separator : "");
-			if(!stateMap.containsKey(relPath)) {
-				try {
-					backup.addAddition(relPath, file);
-				} catch (IOException e) {
-					throw new BackupException("Failed to add file to backup: " + file.getAbsolutePath(), e);
-				}
-			} else {
-				// Compare the file and store a modification if it is different.
-				boolean backupContainsEqualFile;
-				try {
-					backupContainsEqualFile = stateMap.get(relPath).contains(relPath, file, true);
-				} catch (IOException e) {
-					throw new BackupException("Failed to compare file with file in backup state.", e);
-				}
-				if(!backupContainsEqualFile) {
+		try {
+			
+			// Loop over all existing files and add them to the backup if they are not in the current backup state.
+			int toBackupDirPathLength = this.toBackupDir.getAbsolutePath().length() + 1; // Includes ending separator.
+			FileIterator it = new FileIterator(this.toBackupDir, this.ignorePaths);
+			while(it.hasNext()) {
+				File file = it.next();
+				String relPath = file.getAbsolutePath().substring(toBackupDirPathLength)
+						+ (file.isDirectory() ? File.separator : "");
+				if(!stateMap.containsKey(relPath)) {
 					try {
-						backup.addModification(relPath, file);
+						backup.addAddition(relPath, file);
+					} catch (IOException e) {
+						throw new BackupException("Failed to add file to backup: " + file.getAbsolutePath(), e);
+					}
+				} else {
+					// Compare the file and store a modification if it is different.
+					boolean backupContainsEqualFile;
+					try {
+						backupContainsEqualFile = stateMap.get(relPath).contains(relPath, file, true);
 					} catch (IOException e) {
 						throw new BackupException(
-								"Failed to add modified file to backup: " + file.getAbsolutePath(), e);
+								"Failed to compare file with file in backup state: " + file.getAbsolutePath(), e);
 					}
+					if(!backupContainsEqualFile) {
+						try {
+							backup.addModification(relPath, file);
+						} catch (IOException e) {
+							throw new BackupException(
+									"Failed to add modified file to backup: " + file.getAbsolutePath(), e);
+						}
+					}
+					
+					// Remove the handled file or directory from the state map so that only deleted files will remain.
+					stateMap.remove(relPath);
 				}
-				
-				// Remove the handled file or directory from the state map so that only deleted files will remain.
-				stateMap.remove(relPath);
 			}
-		}
-		
-		// Add all remaining files in the state map as deletions. These did not appear in the current files.
-		for(String relPath : stateMap.keySet()) {
+			
+			// Add all remaining files in the state map as deletions. These did not appear in the current files.
+			for(String relPath : stateMap.keySet()) {
+				try {
+					backup.addRemoval(relPath);
+				} catch (IOException e) {
+					throw new BackupException("Failed to add removal to backup: " + relPath, e);
+				}
+			}
+			
+			// Close the new backup.
 			try {
-				backup.addRemoval(relPath);
+				backup.close();
 			} catch (IOException e) {
-				throw new BackupException("Failed to add removal to backup.", e);
+				throw new BackupException("Failed to close the new backup.", e);
 			}
-		}
-		
-		// Close the new backup.
-		try {
-			backup.close();
-		} catch (IOException e) {
+		} catch (BackupException e) {
+			
+			// Delete backup part.
 			try {
 				backup.delete();
 			} catch (IOException e1) {
 				this.logger.severe(
 						"Failed to remove a failed backup. Here's the stacktrace:\n" + Utils.getStacktrace(e1));
-				throw new BackupException("Failed to close the new backup. It could also not be removed.", e);
 			}
-			throw new BackupException("Failed to close the new backup.", e);
+			
+			// Rethrow exception.
+			throw e;
 		}
 	}
 	
